@@ -118,6 +118,18 @@ async function api(req, res, pathname, url) {
     return send(res, 200, { drama: enrichDrama(db, drama) });
   }
 
+  if (req.method === "GET" && pathname === "/api/favorites") {
+    const user = requireUser(req, res);
+    if (!user) return;
+    const stored = db.users.find((item) => item.id === user.id);
+    const favoriteIds = stored.favorites || [];
+    const dramas = db.dramas
+      .filter((drama) => favoriteIds.includes(drama.id))
+      .map((drama) => enrichDrama(db, drama))
+      .sort((a, b) => favoriteIds.indexOf(b.id) - favoriteIds.indexOf(a.id));
+    return send(res, 200, { dramas });
+  }
+
   if (req.method === "POST" && pathname === "/api/favorites") {
     const user = requireUser(req, res);
     if (!user) return;

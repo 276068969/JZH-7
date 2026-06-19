@@ -5,6 +5,7 @@ const state = {
   rankStatus: "",
   dramas: [],
   rankings: [],
+  favorites: [],
   selectedDrama: null,
   filter: "全部",
   token: localStorage.getItem("token") || "",
@@ -89,6 +90,12 @@ async function loadRankings(type, status) {
   state.rankings = data.rankings;
 }
 
+async function loadFavorites() {
+  if (!state.user) return;
+  const data = await api("/api/favorites");
+  state.favorites = data.dramas;
+}
+
 function topbar() {
   return `
     <header class="topbar">
@@ -96,6 +103,7 @@ function topbar() {
       <nav class="tabs">
         <button class="tab ${state.route === "home" ? "active" : ""}" data-route="home">精选短剧</button>
         <button class="tab ${state.route === "rankings" ? "active" : ""}" data-route="rankings">热播榜</button>
+        <button class="tab ${state.route === "favorites" ? "active" : ""}" data-route="favorites">我的收藏</button>
         <button class="tab ${state.route === "detail" ? "active" : ""}" data-featured-detail>播放大厅</button>
         <button class="tab ${state.route === "admin" ? "active" : ""}" data-route="admin">后台管理</button>
       </nav>
@@ -247,6 +255,72 @@ function rankings() {
         <div class="ranking-list">
           ${state.rankings.length ? state.rankings.map((drama, index) => rankingCard(drama, index + 1)).join("") : `<div class="empty-state"><p>暂无符合条件的短剧</p></div>`}
         </div>
+      </section>
+    </main>
+  `;
+}
+
+function favorites() {
+  if (!state.user) {
+    return `
+      ${topbar()}
+      <main class="login-wrap">
+        <section class="login-panel">
+          <p class="eyebrow">我的收藏</p>
+          <h2>请先登录</h2>
+          <p class="muted">登录后即可查看和管理你收藏的短剧。</p>
+          <button class="primary-btn" data-route="login" style="margin-top:16px">立即登录</button>
+        </section>
+      </main>
+    `;
+  }
+  return `
+    ${topbar()}
+    <main>
+      <section class="favorites-hero">
+        <div>
+          <p class="eyebrow">追剧清单</p>
+          <h1>我的收藏</h1>
+          <p class="muted fav-desc">已收藏 <strong class="fav-count">${state.favorites.length}</strong> 部短剧，随时继续追剧。</p>
+        </div>
+      </section>
+      <section class="section">
+        ${state.favorites.length ? `
+          <div class="favorites-list">
+            ${state.favorites.map((drama) => `
+              <article class="favorite-card">
+                <div class="favorite-poster" style="background-image:url('${drama.cover}')">
+                  <span class="badge">${drama.status}</span>
+                  <span class="rating">${drama.rating}</span>
+                </div>
+                <div class="favorite-body">
+                  <div class="favorite-header">
+                    <div>
+                      <h3 class="card-title">${drama.title}</h3>
+                      <div class="meta-row fav-meta">
+                        <span class="pill dark">${drama.genre}</span>
+                        <span class="pill dark">${drama.episodes} 集</span>
+                        <span class="pill dark">${formatNumber(drama.views)} 播放</span>
+                      </div>
+                    </div>
+                  </div>
+                  <p class="favorite-synopsis">${drama.synopsis}</p>
+                  <div class="favorite-actions">
+                    <button class="primary-btn" data-detail="${drama.id}">立即播放</button>
+                    <button class="ghost-btn" data-fav="${drama.id}">取消收藏</button>
+                  </div>
+                </div>
+              </article>
+            `).join("")}
+          </div>
+        ` : `
+          <div class="empty-favorites">
+            <div class="empty-icon">☆</div>
+            <h3>还没有收藏的短剧</h3>
+            <p class="muted">去发现好剧，把喜欢的短剧加入收藏吧。</p>
+            <button class="primary-btn" data-route="home">发现短剧</button>
+          </div>
+        `}
       </section>
     </main>
   `;
@@ -411,6 +485,7 @@ async function render() {
   if (!state.dramas.length) await loadDramas();
   if (state.route === "admin" && state.user?.role === "admin") await loadAdmin();
   if (state.route === "rankings") await loadRankings(state.rankTab, state.rankStatus);
+  if (state.route === "favorites") await loadFavorites();
   app.innerHTML = `<div class="app-shell">${view()}</div>`;
   bind();
 }
@@ -419,6 +494,7 @@ function view() {
   if (state.route === "login") return login();
   if (state.route === "detail") return detail();
   if (state.route === "rankings") return rankings();
+  if (state.route === "favorites") return favorites();
   if (state.route === "admin") return admin();
   return home();
 }
