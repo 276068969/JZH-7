@@ -671,6 +671,70 @@ th {
   min-width: 120px;
 }
 
+.rank-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  margin-bottom: 24px;
+}
+
+.status-filters {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.status-filter-label {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.status-filter-chips {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.status-chip {
+  padding: 7px 16px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.status-chip:hover {
+  border-color: var(--brand);
+  color: var(--brand-dark);
+}
+
+.status-chip.active {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: #fff;
+  box-shadow: 0 6px 16px rgba(232, 67, 99, 0.25);
+}
+
+.empty-state {
+  padding: 60px 20px;
+  text-align: center;
+  color: var(--muted);
+  background: #fff;
+  border: 1px dashed var(--line);
+  border-radius: 12px;
+}
+
+.empty-state p {
+  margin: 0;
+  font-size: 15px;
+}
+
 .hidden {
   display: none !important;
 }

@@ -2,6 +2,7 @@ const state = {
   route: "home",
   adminTab: "dashboard",
   rankTab: "views",
+  rankStatus: "",
   dramas: [],
   rankings: [],
   selectedDrama: null,
@@ -80,8 +81,11 @@ async function loadAdmin() {
   state.orders = data.orders;
 }
 
-async function loadRankings(type) {
-  const data = await api(`/api/rankings?type=${type}`);
+async function loadRankings(type, status) {
+  const params = new URLSearchParams();
+  if (type) params.set("type", type);
+  if (status) params.set("status", status);
+  const data = await api(`/api/rankings?${params.toString()}`);
   state.rankings = data.rankings;
 }
 
@@ -203,7 +207,12 @@ function rankings() {
     { key: "rating", label: "好评榜", desc: "按评分排行，发现高口碑佳作" },
     { key: "revenue", label: "畅销榜", desc: "按收入排行，发现最具价值内容" }
   ];
-  const currentTab = rankTabs.find((tab) => tab.key === state.rankTab) || rankTabs[0];
+  const statusTabs = [
+    { key: "", label: "全部" },
+    { key: "热播", label: "热播中" },
+    { key: "完结", label: "已完结" },
+    { key: "上新", label: "新上线" }
+  ];
   return `
     ${topbar()}
     <main>
@@ -215,7 +224,7 @@ function rankings() {
         </div>
       </section>
       <section class="section">
-        <div class="section-head">
+        <div class="rank-toolbar">
           <div class="rank-tabs">
             ${rankTabs.map((tab) => `
               <button class="rank-tab ${tab.key === state.rankTab ? "active" : ""}" data-rank-tab="${tab.key}">
@@ -224,9 +233,19 @@ function rankings() {
               </button>
             `).join("")}
           </div>
+          <div class="status-filters">
+            <span class="status-filter-label">状态筛选</span>
+            <div class="status-filter-chips">
+              ${statusTabs.map((tab) => `
+                <button class="status-chip ${(tab.key === state.rankStatus) ? "active" : ""}" data-rank-status="${tab.key}">
+                  ${tab.label}
+                </button>
+              `).join("")}
+            </div>
+          </div>
         </div>
         <div class="ranking-list">
-          ${state.rankings.map((drama, index) => rankingCard(drama, index + 1)).join("")}
+          ${state.rankings.length ? state.rankings.map((drama, index) => rankingCard(drama, index + 1)).join("") : `<div class="empty-state"><p>暂无符合条件的短剧</p></div>`}
         </div>
       </section>
     </main>
@@ -391,7 +410,7 @@ function adminOrders() {
 async function render() {
   if (!state.dramas.length) await loadDramas();
   if (state.route === "admin" && state.user?.role === "admin") await loadAdmin();
-  if (state.route === "rankings") await loadRankings(state.rankTab);
+  if (state.route === "rankings") await loadRankings(state.rankTab, state.rankStatus);
   app.innerHTML = `<div class="app-shell">${view()}</div>`;
   bind();
 }
@@ -455,6 +474,13 @@ function bind() {
   document.querySelectorAll("[data-rank-tab]").forEach((node) => {
     node.addEventListener("click", () => {
       state.rankTab = node.dataset.rankTab;
+      render();
+    });
+  });
+
+  document.querySelectorAll("[data-rank-status]").forEach((node) => {
+    node.addEventListener("click", () => {
+      state.rankStatus = node.dataset.rankStatus;
       render();
     });
   });
