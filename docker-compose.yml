@@ -1,0 +1,14 @@
+services:
+  short-drama:
+    build: .
+    container_name: short-drama-platform
+    ports:
+      - "3000:3000"
+    volumes:
+      - short_drama_data:/app/data
+    environment:
+      - PORT=3000
+    restart: unless-stopped
+
+volumes:
+  short_drama_data:

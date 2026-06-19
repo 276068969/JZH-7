@@ -1,0 +1,21 @@
+{
+  "name": "short-drama-platform",
+  "version": "1.0.0",
+  "description": "A full-stack short drama platform with public site and admin console.",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node server/index.js",
+    "test": "node server/test.js"
+  },
+  "keywords": [
+    "short-drama",
+    "full-stack",
+    "docker"
+  ],
+  "author": "",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  }
+}
