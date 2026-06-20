@@ -17,6 +17,26 @@ const state = {
 
 const app = document.querySelector("#app");
 
+let _handling401 = false;
+
+function clearSession() {
+  state.token = "";
+  state.user = null;
+  localStorage.removeItem("token");
+  localStorage.removeItem("user");
+}
+
+function handleUnauthorized() {
+  if (_handling401) return;
+  _handling401 = true;
+  clearSession();
+  toast("登录已过期，请重新登录");
+  setTimeout(() => {
+    _handling401 = false;
+    route("login");
+  }, 300);
+}
+
 function api(path, options = {}) {
   return fetch(path, {
     ...options,
@@ -26,6 +46,10 @@ function api(path, options = {}) {
       ...(options.headers || {})
     }
   }).then(async (res) => {
+    if (res.status === 401) {
+      handleUnauthorized();
+      throw new Error("请先登录");
+    }
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.message || "请求失败");
     return data;
@@ -57,10 +81,7 @@ function setSession(token, user) {
 }
 
 function logout() {
-  state.token = "";
-  state.user = null;
-  localStorage.removeItem("token");
-  localStorage.removeItem("user");
+  clearSession();
   route("home");
 }
 
@@ -594,6 +615,35 @@ function bind() {
   });
 }
 
-render().catch((error) => {
-  app.innerHTML = `<main class="section"><section class="detail-panel"><h2>加载失败</h2><p>${error.message}</p></section></main>`;
-});
+async function validateSession() {
+  if (!state.token) return;
+  try {
+    const res = await fetch("/api/me", {
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${state.token}`
+      }
+    });
+    if (res.status === 401) {
+      clearSession();
+      return;
+    }
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      clearSession();
+      return;
+    }
+    setSession(state.token, data.user);
+  } catch (error) {
+    clearSession();
+  }
+}
+
+(async function bootstrap() {
+  await validateSession();
+  try {
+    await render();
+  } catch (error) {
+    app.innerHTML = `<main class="section"><section class="detail-panel"><h2>加载失败</h2><p>${error.message}</p></section></main>`;
+  }
+})();
