@@ -151,6 +151,70 @@ async function api(req, res, pathname, url) {
     return send(res, 200, { favorites: stored.favorites });
   }
 
+  if (req.method === "GET" && pathname === "/api/history") {
+    const user = requireUser(req, res);
+    if (!user) return;
+    const stored = db.users.find((item) => item.id === user.id);
+    const history = (stored.watchHistory || []).slice().sort((a, b) => new Date(b.watchedAt) - new Date(a.watchedAt));
+    const dramas = history.map((record) => {
+      const drama = db.dramas.find((d) => d.id === record.dramaId);
+      if (!drama || drama.status === "下架") return null;
+      return {
+        ...enrichDrama(db, drama),
+        episode: record.episode,
+        watchedAt: record.watchedAt,
+        progress: record.progress || 0
+      };
+    }).filter(Boolean);
+    return send(res, 200, { history: dramas });
+  }
+
+  if (req.method === "POST" && pathname === "/api/history") {
+    const user = requireUser(req, res);
+    if (!user) return;
+    const body = await readBody(req);
+    const drama = db.dramas.find((item) => item.id === body.dramaId);
+    if (!drama) return send(res, 404, { message: "短剧不存在" });
+    const stored = db.users.find((item) => item.id === user.id);
+    stored.watchHistory = stored.watchHistory || [];
+    const existingIndex = stored.watchHistory.findIndex((r) => r.dramaId === body.dramaId);
+    const record = {
+      dramaId: body.dramaId,
+      episode: Number(body.episode) || 1,
+      watchedAt: new Date().toISOString(),
+      progress: Number(body.progress) || 0
+    };
+    if (existingIndex >= 0) {
+      stored.watchHistory[existingIndex] = record;
+    } else {
+      stored.watchHistory.unshift(record);
+    }
+    if (stored.watchHistory.length > 100) {
+      stored.watchHistory = stored.watchHistory.slice(0, 100);
+    }
+    writeDb(db);
+    return send(res, 200, { ok: true, record });
+  }
+
+  if (req.method === "DELETE" && pathname.startsWith("/api/history/")) {
+    const user = requireUser(req, res);
+    if (!user) return;
+    const dramaId = decodeURIComponent(pathname.split("/").pop());
+    const stored = db.users.find((item) => item.id === user.id);
+    stored.watchHistory = (stored.watchHistory || []).filter((r) => r.dramaId !== dramaId);
+    writeDb(db);
+    return send(res, 200, { ok: true });
+  }
+
+  if (req.method === "DELETE" && pathname === "/api/history") {
+    const user = requireUser(req, res);
+    if (!user) return;
+    const stored = db.users.find((item) => item.id === user.id);
+    stored.watchHistory = [];
+    writeDb(db);
+    return send(res, 200, { ok: true });
+  }
+
   if (req.method === "GET" && pathname === "/api/admin/stats") {
     if (!requireAdmin(req, res)) return;
     const revenue = db.orders.filter((order) => order.status === "paid").reduce((sum, order) => sum + order.amount, 0);

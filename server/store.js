@@ -14,7 +14,8 @@ const seed = {
       role: "admin",
       name: "平台管理员",
       plan: "运营版",
-      favorites: []
+      favorites: [],
+      watchHistory: []
     },
     {
       id: "u_demo",
@@ -23,7 +24,12 @@ const seed = {
       role: "user",
       name: "追剧用户",
       plan: "黄金会员",
-      favorites: ["d1", "d4"]
+      favorites: ["d1", "d4"],
+      watchHistory: [
+        { dramaId: "d1", episode: 5, watchedAt: "2026-06-18T20:30:00.000Z", progress: 45 },
+        { dramaId: "d3", episode: 12, watchedAt: "2026-06-17T15:20:00.000Z", progress: 80 },
+        { dramaId: "d2", episode: 1, watchedAt: "2026-06-15T22:10:00.000Z", progress: 15 }
+      ]
     }
   ],
   dramas: [

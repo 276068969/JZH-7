@@ -8,7 +8,9 @@ const state = {
   adminDramas: [],
   rankings: [],
   favorites: [],
+  watchHistory: [],
   selectedDrama: null,
+  currentEpisode: 1,
   filter: "全部",
   token: localStorage.getItem("token") || "",
   user: JSON.parse(localStorage.getItem("user") || "null"),
@@ -126,6 +128,52 @@ async function loadFavorites() {
   state.favorites = data.dramas;
 }
 
+async function loadHistory() {
+  if (!state.user) return;
+  const data = await api("/api/history");
+  state.watchHistory = data.history;
+}
+
+async function addToHistory(dramaId, episode, progress) {
+  if (!state.user) return;
+  try {
+    await api("/api/history", {
+      method: "POST",
+      body: JSON.stringify({ dramaId, episode, progress })
+    });
+  } catch (e) {
+    console.warn("记录观看历史失败", e);
+  }
+}
+
+async function removeFromHistory(dramaId) {
+  if (!state.user) return;
+  await api(`/api/history/${dramaId}`, { method: "DELETE" });
+  state.watchHistory = state.watchHistory.filter((item) => item.id !== dramaId);
+}
+
+async function clearAllHistory() {
+  if (!state.user) return;
+  await api("/api/history", { method: "DELETE" });
+  state.watchHistory = [];
+}
+
+function formatWatchedAt(isoString) {
+  const date = new Date(isoString);
+  const now = new Date();
+  const diffMs = now - date;
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+  if (diffMins < 1) return "刚刚";
+  if (diffMins < 60) return `${diffMins} 分钟前`;
+  if (diffHours < 24) return `${diffHours} 小时前`;
+  if (diffDays < 7) return `${diffDays} 天前`;
+  const month = date.getMonth() + 1;
+  const day = date.getDate();
+  return `${month}月${day}日`;
+}
+
 function topbar() {
   return `
     <header class="topbar">
@@ -133,6 +181,7 @@ function topbar() {
       <nav class="tabs">
         <button class="tab ${state.route === "home" ? "active" : ""}" data-route="home">精选短剧</button>
         <button class="tab ${state.route === "rankings" ? "active" : ""}" data-route="rankings">热播榜</button>
+        <button class="tab ${state.route === "history" ? "active" : ""}" data-route="history">观看历史</button>
         <button class="tab ${state.route === "favorites" ? "active" : ""}" data-route="favorites">我的收藏</button>
         <button class="tab ${state.route === "detail" ? "active" : ""}" data-featured-detail>播放大厅</button>
         <button class="tab ${state.route === "admin" ? "active" : ""}" data-route="admin">后台管理</button>
@@ -152,6 +201,7 @@ function home() {
   const featured = state.dramas[0];
   const genres = ["全部", ...new Set(state.dramas.map((drama) => drama.genre))];
   const dramas = state.filter === "全部" ? state.dramas : state.dramas.filter((drama) => drama.genre === state.filter);
+  const recentHistory = state.user ? state.watchHistory.slice(0, 4) : [];
   return `
     ${topbar()}
     <main>
@@ -174,6 +224,34 @@ function home() {
           </div>
         </aside>
       </section>
+      ${recentHistory.length ? `
+      <section class="section">
+        <div class="section-head">
+          <div>
+            <h2>继续观看</h2>
+            <p class="muted">从上次离开的地方，继续追剧。</p>
+          </div>
+          <div>
+            <button class="chip" data-route="history">查看全部</button>
+          </div>
+        </div>
+        <div class="recent-grid">
+          ${recentHistory.map((drama) => `
+            <article class="recent-card" data-detail="${drama.id}" data-episode="${drama.episode || 1}">
+              <div class="recent-poster" style="background-image:url('${drama.cover}')">
+                <span class="badge">${drama.status}</span>
+                <div class="progress-bar"><div class="progress-fill" style="width:${drama.progress || 0}%"></div></div>
+                <div class="recent-play">▶ 第 ${drama.episode || 1} 集</div>
+              </div>
+              <div class="recent-body">
+                <h3 class="card-title small-title">${drama.title}</h3>
+                <p class="muted small">${formatWatchedAt(drama.watchedAt)} · ${drama.genre}</p>
+              </div>
+            </article>
+          `).join("")}
+        </div>
+      </section>
+      ` : ""}
       <section class="section">
         <div class="section-head">
           <div>
@@ -356,14 +434,104 @@ function favorites() {
   `;
 }
 
+function history() {
+  if (!state.user) {
+    return `
+      ${topbar()}
+      <main class="login-wrap">
+        <section class="login-panel">
+          <p class="eyebrow">用户观影足迹</p>
+          <h2>请先登录</h2>
+          <p class="muted">登录后即可查看你的观看历史，继续追剧。</p>
+          <button class="primary-btn" data-route="login" style="margin-top:16px">立即登录</button>
+        </section>
+      </main>
+    `;
+  }
+  return `
+    ${topbar()}
+    <main>
+      <section class="history-hero">
+        <div>
+          <p class="eyebrow">用户观影足迹</p>
+          <h1>观看历史</h1>
+          <p class="muted history-desc">共观看 <strong class="history-count">${state.watchHistory.length}</strong> 部短剧，继续你的追剧之旅。</p>
+        </div>
+        ${state.watchHistory.length ? `
+          <div class="history-actions">
+            <button class="ghost-btn danger-btn" data-clear-history>清空历史</button>
+          </div>
+        ` : ""}
+      </section>
+      <section class="section">
+        ${state.watchHistory.length ? `
+          <div class="history-list">
+            ${state.watchHistory.map((drama) => `
+              <article class="history-card">
+                <div class="history-poster" style="background-image:url('${drama.cover}')" data-detail="${drama.id}">
+                  <span class="badge">${drama.status}</span>
+                  <span class="rating">${drama.rating}</span>
+                  <div class="progress-bar"><div class="progress-fill" style="width:${drama.progress || 0}%"></div></div>
+                  <div class="continue-badge">
+                    <span class="continue-ep">第 ${drama.episode || 1} 集</span>
+                  </div>
+                </div>
+                <div class="history-body">
+                  <div class="history-header">
+                    <div>
+                      <h3 class="card-title" data-detail="${drama.id}">${drama.title}</h3>
+                      <div class="meta-row history-meta">
+                        <span class="pill dark">${drama.genre}</span>
+                        <span class="pill dark">${drama.episodes} 集</span>
+                        <span class="pill dark">${formatNumber(drama.views)} 播放</span>
+                        <span class="pill dark watched-time">🕒 ${formatWatchedAt(drama.watchedAt)}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <p class="history-synopsis">${drama.synopsis}</p>
+                  <div class="progress-info">
+                    <span>观看进度：第 ${drama.episode || 1} 集</span>
+                    <span class="muted">已看 ${drama.progress || 0}%</span>
+                  </div>
+                  <div class="history-actions-row">
+                    <button class="primary-btn" data-detail="${drama.id}" data-episode="${drama.episode || 1}">继续观看</button>
+                    <button class="ghost-btn" data-fav="${drama.id}">${state.user?.favorites?.includes(drama.id) ? "已收藏" : "收藏"}</button>
+                    <button class="ghost-btn danger-text" data-remove-history="${drama.id}">删除记录</button>
+                  </div>
+                </div>
+              </article>
+            `).join("")}
+          </div>
+        ` : `
+          <div class="empty-history">
+            <div class="empty-icon">📺</div>
+            <h3>暂无观看记录</h3>
+            <p class="muted">去发现好剧，开始你的追剧之旅吧。</p>
+            <button class="primary-btn" data-route="home">发现短剧</button>
+          </div>
+        `}
+      </section>
+    </main>
+  `;
+}
+
 function detail() {
   const drama = state.selectedDrama || state.dramas[0];
   if (!drama) return `${topbar()}<main class="section"><p>暂无短剧</p></main>`;
+  const currentEp = state.currentEpisode || 1;
+  const historyRecord = state.watchHistory.find((h) => h.id === drama.id);
+  const lastEpisode = historyRecord?.episode || 1;
   return `
     ${topbar()}
     <main class="section detail-layout">
       <aside class="detail-panel">
         <img class="detail-cover" src="${drama.cover}" alt="${drama.title}" />
+        ${historyRecord ? `
+          <div class="detail-history">
+            <p class="muted small">上次看到：第 ${lastEpisode} 集 · ${formatWatchedAt(historyRecord.watchedAt)}</p>
+            <button class="ghost-btn continue-last-btn" data-continue-last="${lastEpisode}">继续观看</button>
+          </div>
+        ` : ""}
       </aside>
       <section class="detail-panel">
         <div class="section-head">
@@ -376,7 +544,7 @@ function detail() {
         <div class="player-box">
           <div>
             <div class="play-symbol">▶</div>
-            <h2>第 1 集</h2>
+            <h2>第 ${currentEp} 集</h2>
             <p>会员权益已模拟开通，可直接播放。</p>
           </div>
         </div>
@@ -387,7 +555,10 @@ function detail() {
           ${drama.tags.map((tag) => `<span class="pill">${tag}</span>`).join("")}
         </div>
         <div class="episode-grid">
-          ${Array.from({ length: Math.min(drama.episodes, 32) }, (_, index) => `<button>${index + 1}</button>`).join("")}
+          ${Array.from({ length: Math.min(drama.episodes, 32) }, (_, index) => {
+            const ep = index + 1;
+            return `<button class="${ep === currentEp ? "active" : ""}" data-episode="${ep}">${ep}</button>`;
+          }).join("")}
         </div>
       </section>
     </main>
@@ -543,12 +714,16 @@ function adminOrders() {
 
 async function render() {
   if (!state.dramas.length) await loadDramas();
+  if (state.user) {
+    await loadHistory();
+  }
   if (state.route === "admin" && state.user?.role === "admin") {
     await loadAdmin();
     if (state.adminTab === "dramas") await loadAdminDramas(state.adminDramaStatus);
   }
   if (state.route === "rankings") await loadRankings(state.rankTab, state.rankStatus);
   if (state.route === "favorites") await loadFavorites();
+  if (state.route === "history") await loadHistory();
   app.innerHTML = `<div class="app-shell">${view()}</div>`;
   bind();
 }
@@ -557,6 +732,7 @@ function view() {
   if (state.route === "login") return login();
   if (state.route === "detail") return detail();
   if (state.route === "rankings") return rankings();
+  if (state.route === "history") return history();
   if (state.route === "favorites") return favorites();
   if (state.route === "admin") return admin();
   return home();
@@ -576,9 +752,67 @@ function bind() {
     });
   });
   document.querySelectorAll("[data-detail]").forEach((node) => {
-    node.addEventListener("click", () => {
+    node.addEventListener("click", async () => {
       const drama = state.dramas.find((item) => item.id === node.dataset.detail);
+      const ep = Number(node.dataset.episode) || 1;
+      state.currentEpisode = ep;
+      if (state.user && drama) {
+        const progress = Math.min(Math.round((ep / (drama.episodes || 1)) * 100), 100);
+        await addToHistory(drama.id, ep, progress);
+      }
       route("detail", drama);
+    });
+  });
+
+  document.querySelectorAll("[data-episode]").forEach((node) => {
+    if (node.closest(".episode-grid")) {
+      node.addEventListener("click", async () => {
+        const ep = Number(node.dataset.episode);
+        state.currentEpisode = ep;
+        const drama = state.selectedDrama || state.dramas[0];
+        if (state.user && drama) {
+          const progress = Math.min(Math.round((ep / (drama.episodes || 1)) * 100), 100);
+          await addToHistory(drama.id, ep, progress);
+        }
+        render();
+      });
+    }
+  });
+
+  document.querySelectorAll("[data-continue-last]").forEach((node) => {
+    node.addEventListener("click", async () => {
+      const ep = Number(node.dataset.continueLast) || 1;
+      state.currentEpisode = ep;
+      const drama = state.selectedDrama || state.dramas[0];
+      if (state.user && drama) {
+        const progress = Math.min(Math.round((ep / (drama.episodes || 1)) * 100), 100);
+        await addToHistory(drama.id, ep, progress);
+      }
+      render();
+    });
+  });
+
+  document.querySelectorAll("[data-remove-history]").forEach((node) => {
+    node.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      const dramaId = node.dataset.removeHistory;
+      await removeFromHistory(dramaId);
+      toast("已删除观看记录");
+      render();
+    });
+  });
+
+  document.querySelector("[data-clear-history]")?.addEventListener("click", async () => {
+    if (confirm("确定要清空所有观看历史吗？此操作不可恢复。")) {
+      await clearAllHistory();
+      toast("已清空观看历史");
+      render();
+    }
+  });
+
+  document.querySelectorAll(".recent-card").forEach((node) => {
+    node.addEventListener("click", (e) => {
+      if (e.target.tagName === "BUTTON") return;
     });
   });
   document.querySelectorAll("[data-fav]").forEach((node) => {
