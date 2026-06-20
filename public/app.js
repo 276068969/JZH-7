@@ -1,9 +1,11 @@
 const state = {
   route: "home",
   adminTab: "dashboard",
+  adminDramaStatus: "",
   rankTab: "views",
   rankStatus: "",
   dramas: [],
+  adminDramas: [],
   rankings: [],
   favorites: [],
   selectedDrama: null,
@@ -94,6 +96,13 @@ function route(name, payload) {
 async function loadDramas() {
   const data = await api("/api/dramas");
   state.dramas = data.dramas;
+}
+
+async function loadAdminDramas(status) {
+  const params = new URLSearchParams();
+  if (status) params.set("status", status);
+  const data = await api(`/api/admin/dramas?${params.toString()}`);
+  state.adminDramas = data.dramas;
 }
 
 async function loadAdmin() {
@@ -446,17 +455,47 @@ function adminDashboard() {
 }
 
 function adminDramas() {
+  const statusTabs = [
+    { key: "", label: "全部" },
+    { key: "上新", label: "上新" },
+    { key: "热播", label: "热播" },
+    { key: "完结", label: "完结" },
+    { key: "下架", label: "下架" }
+  ];
+  const dramas = state.adminDramas.length ? state.adminDramas : state.dramas;
   return `
-    <div class="admin-grid">
+    <div class="admin-dramas-wrapper">
       <section class="admin-panel">
-        <div class="section-head"><div><h2>短剧列表</h2><p class="muted">支持删除和新增短剧。</p></div></div>
-        <table>
-          <thead><tr><th>名称</th><th>状态</th><th>集数</th><th>定价</th><th>操作</th></tr></thead>
+        <div class="section-head">
+          <div>
+            <h2>短剧列表</h2>
+            <p class="muted">支持上下架、状态筛选和新增短剧。</p>
+          </div>
+          <div class="admin-status-filters">
+            ${statusTabs.map((tab) => `
+              <button class="status-chip ${tab.key === state.adminDramaStatus ? "active" : ""}" data-admin-status="${tab.key}">
+                ${tab.label}
+              </button>
+            `).join("")}
+          </div>
+        </div>
+        <table class="drama-admin-table">
+          <thead><tr><th>名称</th><th>状态</th><th>集数</th><th>定价</th><th>播放量</th><th>操作</th></tr></thead>
           <tbody>
-            ${state.dramas.map((drama) => `
-              <tr>
-                <td>${drama.title}</td><td>${drama.status}</td><td>${drama.episodes}</td><td>${money(drama.price)}</td>
-                <td><button class="danger-btn" data-delete="${drama.id}">删除</button></td>
+            ${dramas.map((drama) => `
+              <tr class="${drama.status === '下架' ? 'drama-offline' : ''}">
+                <td>${drama.title}</td>
+                <td><span class="status-badge status-${drama.status}">${drama.status}</span></td>
+                <td>${drama.episodes}</td>
+                <td>${money(drama.price)}</td>
+                <td>${formatNumber(drama.views)}</td>
+                <td class="drama-actions">
+                  ${drama.status === '下架'
+                    ? `<button class="success-btn" data-restore="${drama.id}">上架</button>`
+                    : `<button class="warning-btn" data-offline="${drama.id}">下架</button>`
+                  }
+                  <button class="danger-btn" data-delete="${drama.id}">删除</button>
+                </td>
               </tr>
             `).join("")}
           </tbody>
@@ -467,7 +506,7 @@ function adminDramas() {
         <form class="form-grid" data-create-form>
           <label>名称<input name="title" required /></label>
           <label>题材<input name="genre" value="都市" required /></label>
-          <label>状态<select name="status"><option>上新</option><option>热播</option><option>完结</option></select></label>
+          <label>状态<select name="status"><option>上新</option><option>热播</option><option>完结</option><option>下架</option></select></label>
           <label>评分<input name="rating" type="number" step="0.1" value="8.6" /></label>
           <label>集数<input name="episodes" type="number" value="24" /></label>
           <label>定价<input name="price" type="number" value="19" /></label>
@@ -504,7 +543,10 @@ function adminOrders() {
 
 async function render() {
   if (!state.dramas.length) await loadDramas();
-  if (state.route === "admin" && state.user?.role === "admin") await loadAdmin();
+  if (state.route === "admin" && state.user?.role === "admin") {
+    await loadAdmin();
+    if (state.adminTab === "dramas") await loadAdminDramas(state.adminDramaStatus);
+  }
   if (state.route === "rankings") await loadRankings(state.rankTab, state.rankStatus);
   if (state.route === "favorites") await loadFavorites();
   app.innerHTML = `<div class="app-shell">${view()}</div>`;
@@ -568,6 +610,13 @@ function bind() {
     });
   });
 
+  document.querySelectorAll("[data-admin-status]").forEach((node) => {
+    node.addEventListener("click", () => {
+      state.adminDramaStatus = node.dataset.adminStatus;
+      render();
+    });
+  });
+
   document.querySelectorAll("[data-rank-tab]").forEach((node) => {
     node.addEventListener("click", () => {
       state.rankTab = node.dataset.rankTab;
@@ -595,17 +644,51 @@ function bind() {
     try {
       await api("/api/admin/dramas", { method: "POST", body: JSON.stringify(body) });
       await loadDramas();
+      if (state.adminTab === "dramas") await loadAdminDramas(state.adminDramaStatus);
       toast("短剧已新增");
       render();
     } catch (error) {
       toast(error.message);
     }
   });
+  document.querySelectorAll("[data-offline]").forEach((node) => {
+    node.addEventListener("click", async () => {
+      try {
+        await api(`/api/admin/dramas/${node.dataset.offline}`, {
+          method: "PUT",
+          body: JSON.stringify({ status: "下架" })
+        });
+        await loadDramas();
+        if (state.adminTab === "dramas") await loadAdminDramas(state.adminDramaStatus);
+        toast("短剧已下架");
+        render();
+      } catch (error) {
+        toast(error.message);
+      }
+    });
+  });
+  document.querySelectorAll("[data-restore]").forEach((node) => {
+    node.addEventListener("click", async () => {
+      try {
+        await api(`/api/admin/dramas/${node.dataset.restore}`, {
+          method: "PUT",
+          body: JSON.stringify({ status: "上新" })
+        });
+        await loadDramas();
+        if (state.adminTab === "dramas") await loadAdminDramas(state.adminDramaStatus);
+        toast("短剧已上架");
+        render();
+      } catch (error) {
+        toast(error.message);
+      }
+    });
+  });
   document.querySelectorAll("[data-delete]").forEach((node) => {
     node.addEventListener("click", async () => {
       try {
         await api(`/api/admin/dramas/${node.dataset.delete}`, { method: "DELETE" });
         await loadDramas();
+        if (state.adminTab === "dramas") await loadAdminDramas(state.adminDramaStatus);
         toast("短剧已删除");
         render();
       } catch (error) {

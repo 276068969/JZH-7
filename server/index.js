@@ -97,13 +97,16 @@ async function api(req, res, pathname, url) {
   }
 
   if (req.method === "GET" && pathname === "/api/dramas") {
-    return send(res, 200, { dramas: db.dramas.map((drama) => enrichDrama(db, drama)) });
+    const visibleDramas = db.dramas.filter((drama) => drama.status !== "下架");
+    return send(res, 200, { dramas: visibleDramas.map((drama) => enrichDrama(db, drama)) });
   }
 
   if (req.method === "GET" && pathname === "/api/rankings") {
     const type = url.searchParams.get("type") || "views";
     const status = url.searchParams.get("status") || "";
-    let list = db.dramas.map((drama) => enrichDrama(db, drama));
+    let list = db.dramas
+      .filter((drama) => drama.status !== "下架")
+      .map((drama) => enrichDrama(db, drama));
     if (status) list = list.filter((drama) => drama.status === status);
     if (type === "views") list.sort((a, b) => b.views - a.views);
     else if (type === "rating") list.sort((a, b) => b.rating - a.rating);
@@ -115,6 +118,7 @@ async function api(req, res, pathname, url) {
     const id = decodeURIComponent(pathname.split("/").pop());
     const drama = db.dramas.find((item) => item.id === id);
     if (!drama) return send(res, 404, { message: "短剧不存在" });
+    if (drama.status === "下架") return send(res, 404, { message: "短剧不存在" });
     return send(res, 200, { drama: enrichDrama(db, drama) });
   }
 
@@ -124,7 +128,7 @@ async function api(req, res, pathname, url) {
     const stored = db.users.find((item) => item.id === user.id);
     const favoriteIds = stored.favorites || [];
     const dramas = db.dramas
-      .filter((drama) => favoriteIds.includes(drama.id))
+      .filter((drama) => favoriteIds.includes(drama.id) && drama.status !== "下架")
       .map((drama) => enrichDrama(db, drama))
       .sort((a, b) => favoriteIds.indexOf(b.id) - favoriteIds.indexOf(a.id));
     return send(res, 200, { dramas });
@@ -165,6 +169,14 @@ async function api(req, res, pathname, url) {
         drama: db.dramas.find((drama) => drama.id === order.dramaId)
       }))
     });
+  }
+
+  if (req.method === "GET" && pathname === "/api/admin/dramas") {
+    if (!requireAdmin(req, res)) return;
+    const status = url.searchParams.get("status") || "";
+    let list = db.dramas.map((drama) => enrichDrama(db, drama));
+    if (status) list = list.filter((drama) => drama.status === status);
+    return send(res, 200, { dramas: list });
   }
 
   if (req.method === "POST" && pathname === "/api/admin/dramas") {
