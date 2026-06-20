@@ -272,19 +272,53 @@ function home() {
 
 function dramaCard(drama) {
   const liked = state.user?.favorites?.includes(drama.id);
+  const statusColors = {
+    "上新": "#1971c2",
+    "热播": "#e84363",
+    "完结": "#495057",
+    "下架": "#c92a2a"
+  };
   return `
     <article class="drama-card">
       <div class="poster" style="background-image:url('${drama.cover}')">
-        <span class="badge">${drama.status}</span>
-        <span class="rating">${drama.rating}</span>
+        <span class="badge" style="background:${statusColors[drama.status] || "rgba(16,24,38,0.76)"}">${drama.status}</span>
+        <span class="price-badge">${money(drama.price)}</span>
+        <div class="rating-wrap">
+          <span class="rating-star">★</span>
+          <span class="rating-score">${drama.rating}</span>
+        </div>
       </div>
       <div class="card-body">
         <h3 class="card-title">${drama.title}</h3>
-        <div class="meta-row"><span class="pill">${drama.genre}</span><span class="pill">${drama.episodes} 集</span><span class="pill">${formatNumber(drama.views)} 播放</span></div>
-        <p>${drama.synopsis}</p>
+        <div class="info-grid">
+          <div class="info-item info-genre">
+            <span class="info-icon">📺</span>
+            <span class="info-label">题材</span>
+            <span class="info-value">${drama.genre}</span>
+          </div>
+          <div class="info-item info-episodes">
+            <span class="info-icon">🎬</span>
+            <span class="info-label">集数</span>
+            <span class="info-value">${drama.episodes} 集</span>
+          </div>
+          <div class="info-item info-price">
+            <span class="info-icon">💰</span>
+            <span class="info-label">定价</span>
+            <span class="info-value">${money(drama.price)}</span>
+          </div>
+          <div class="info-item info-views">
+            <span class="info-icon">👁</span>
+            <span class="info-label">播放</span>
+            <span class="info-value">${formatNumber(drama.views)}</span>
+          </div>
+        </div>
+        <div class="tags-row">
+          ${drama.tags.map((tag) => `<span class="tag-pill">#${tag}</span>`).join("")}
+        </div>
+        <p class="synopsis-text">${drama.synopsis}</p>
         <div class="card-actions">
-          <button class="primary-btn" data-detail="${drama.id}">播放</button>
-          <button class="ghost-btn" data-fav="${drama.id}">${liked ? "已收藏" : "收藏"}</button>
+          <button class="primary-btn" data-detail="${drama.id}">▶ 播放</button>
+          <button class="ghost-btn" data-fav="${drama.id}">${liked ? "★ 已收藏" : "☆ 收藏"}</button>
         </div>
       </div>
     </article>
