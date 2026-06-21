@@ -71,11 +71,18 @@ function readBody(req) {
   });
 }
 
-function enrichDrama(db, drama) {
+function enrichDrama(db, drama, userId) {
   const revenue = db.orders
     .filter((order) => order.dramaId === drama.id && order.status === "paid")
     .reduce((sum, order) => sum + order.amount, 0);
-  return { ...drama, revenue };
+  const result = { ...drama, revenue };
+  if (userId) {
+    const purchased = db.orders.some(
+      (order) => order.dramaId === drama.id && order.userId === userId && order.status === "paid"
+    );
+    result.isPurchased = purchased;
+  }
+  return result;
 }
 
 function validateDramaCreate(body) {
@@ -198,16 +205,18 @@ async function api(req, res, pathname, url) {
   }
 
   if (req.method === "GET" && pathname === "/api/dramas") {
+    const user = currentUser(req);
     const visibleDramas = db.dramas.filter((drama) => drama.status !== "下架");
-    return send(res, 200, { dramas: visibleDramas.map((drama) => enrichDrama(db, drama)) });
+    return send(res, 200, { dramas: visibleDramas.map((drama) => enrichDrama(db, drama, user?.id)) });
   }
 
   if (req.method === "GET" && pathname === "/api/rankings") {
+    const user = currentUser(req);
     const type = url.searchParams.get("type") || "views";
     const status = url.searchParams.get("status") || "";
     let list = db.dramas
       .filter((drama) => drama.status !== "下架")
-      .map((drama) => enrichDrama(db, drama));
+      .map((drama) => enrichDrama(db, drama, user?.id));
     if (status) list = list.filter((drama) => drama.status === status);
     if (type === "views") list.sort((a, b) => b.views - a.views);
     else if (type === "rating") list.sort((a, b) => b.rating - a.rating);
@@ -216,11 +225,12 @@ async function api(req, res, pathname, url) {
   }
 
   if (req.method === "GET" && pathname.startsWith("/api/dramas/")) {
+    const user = currentUser(req);
     const id = decodeURIComponent(pathname.split("/").pop());
     const drama = db.dramas.find((item) => item.id === id);
     if (!drama) return send(res, 404, { message: "短剧不存在" });
     if (drama.status === "下架") return send(res, 404, { message: "短剧不存在" });
-    return send(res, 200, { drama: enrichDrama(db, drama) });
+    return send(res, 200, { drama: enrichDrama(db, drama, user?.id) });
   }
 
   if (req.method === "GET" && pathname === "/api/favorites") {
@@ -230,7 +240,7 @@ async function api(req, res, pathname, url) {
     const favoriteIds = stored.favorites || [];
     const dramas = db.dramas
       .filter((drama) => favoriteIds.includes(drama.id) && drama.status !== "下架")
-      .map((drama) => enrichDrama(db, drama))
+      .map((drama) => enrichDrama(db, drama, user.id))
       .sort((a, b) => favoriteIds.indexOf(b.id) - favoriteIds.indexOf(a.id));
     return send(res, 200, { dramas });
   }
@@ -261,7 +271,7 @@ async function api(req, res, pathname, url) {
       const drama = db.dramas.find((d) => d.id === record.dramaId);
       if (!drama || drama.status === "下架") return null;
       return {
-        ...enrichDrama(db, drama),
+        ...enrichDrama(db, drama, user.id),
         episode: record.episode,
         watchedAt: record.watchedAt,
         progress: record.progress || 0
@@ -314,6 +324,49 @@ async function api(req, res, pathname, url) {
     stored.watchHistory = [];
     writeDb(db);
     return send(res, 200, { ok: true });
+  }
+
+  if (req.method === "GET" && pathname === "/api/orders") {
+    const user = requireUser(req, res);
+    if (!user) return;
+    const userOrders = db.orders
+      .filter((order) => order.userId === user.id)
+      .map((order) => ({
+        ...order,
+        drama: db.dramas.find((drama) => drama.id === order.dramaId)
+      }))
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    return send(res, 200, { orders: userOrders });
+  }
+
+  if (req.method === "POST" && pathname === "/api/orders") {
+    const user = requireUser(req, res);
+    if (!user) return;
+    const body = await readBody(req);
+    const dramaId = body.dramaId;
+    const drama = db.dramas.find((item) => item.id === dramaId);
+    if (!drama) return send(res, 404, { message: "短剧不存在" });
+    if (drama.status === "下架") return send(res, 404, { message: "短剧已下架" });
+
+    const existingOrder = db.orders.find(
+      (order) => order.userId === user.id && order.dramaId === dramaId && order.status === "paid"
+    );
+    if (existingOrder) {
+      return send(res, 400, { message: "您已购买过该短剧" });
+    }
+
+    const order = {
+      id: createId("o"),
+      userId: user.id,
+      dramaId: dramaId,
+      amount: drama.price,
+      status: "paid",
+      createdAt: new Date().toISOString().split("T")[0]
+    };
+    db.orders.push(order);
+    writeDb(db);
+
+    return send(res, 201, { order: { ...order, drama } });
   }
 
   if (req.method === "GET" && pathname === "/api/admin/stats") {

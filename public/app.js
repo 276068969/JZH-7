@@ -9,6 +9,7 @@ const state = {
   rankings: [],
   favorites: [],
   watchHistory: [],
+  userOrders: [],
   selectedDrama: null,
   currentEpisode: 1,
   filter: "全部",
@@ -182,6 +183,20 @@ async function loadHistory() {
   state.watchHistory = data.history;
 }
 
+async function loadOrders() {
+  if (!state.user) return;
+  const data = await api("/api/orders");
+  state.userOrders = data.orders;
+}
+
+async function purchaseDrama(dramaId) {
+  const data = await api("/api/orders", {
+    method: "POST",
+    body: JSON.stringify({ dramaId })
+  });
+  return data.order;
+}
+
 async function addToHistory(dramaId, episode, progress) {
   if (!state.user) return;
   try {
@@ -231,6 +246,7 @@ function topbar() {
         <button class="tab ${state.route === "rankings" ? "active" : ""}" data-route="rankings">热播榜</button>
         <button class="tab ${state.route === "history" ? "active" : ""}" data-route="history">观看历史</button>
         <button class="tab ${state.route === "favorites" ? "active" : ""}" data-route="favorites">我的收藏</button>
+        <button class="tab ${state.route === "orders" ? "active" : ""}" data-route="orders">我的订单</button>
         <button class="tab ${state.route === "detail" ? "active" : ""}" data-featured-detail>播放大厅</button>
         <button class="tab ${state.route === "admin" ? "active" : ""}" data-route="admin">后台管理</button>
       </nav>
@@ -652,17 +668,106 @@ function history() {
   `;
 }
 
+function orders() {
+  if (!state.user) {
+    return `
+      ${topbar()}
+      <main class="login-wrap">
+        <section class="login-panel">
+          <p class="eyebrow">我的订单</p>
+          <h2>请先登录</h2>
+          <p class="muted">登录后即可查看你的购买订单。</p>
+          <button class="primary-btn" data-route="login" style="margin-top:16px">立即登录</button>
+        </section>
+      </main>
+    `;
+  }
+  const paidOrders = state.userOrders.filter((o) => o.status === "paid");
+  const totalSpent = paidOrders.reduce((sum, o) => sum + o.amount, 0);
+  return `
+    ${topbar()}
+    <main>
+      <section class="orders-hero">
+        <div>
+          <p class="eyebrow">消费记录</p>
+          <h1>我的订单</h1>
+          <p class="muted orders-desc">共 <strong class="orders-count">${paidOrders.length}</strong> 笔订单，累计消费 <strong>${money(totalSpent)}</strong></p>
+        </div>
+      </section>
+      <section class="section">
+        ${paidOrders.length ? `
+          <div class="orders-list">
+            ${paidOrders.map((order) => `
+              <article class="order-card">
+                <div class="order-poster" style="background-image:url('${order.drama?.cover || ""}')"></div>
+                <div class="order-body">
+                  <div class="order-header">
+                    <div>
+                      <h3 class="card-title">${order.drama?.title || "未知短剧"}</h3>
+                      <div class="meta-row">
+                        <span class="pill dark">${order.drama?.genre || ""}</span>
+                        <span class="pill dark">${order.drama?.episodes || 0} 集</span>
+                        <span class="pill dark order-status paid">已支付</span>
+                      </div>
+                    </div>
+                    <div class="order-amount">
+                      <span class="order-price">${money(order.amount)}</span>
+                    </div>
+                  </div>
+                  <div class="order-footer">
+                    <span class="muted small">订单号：${order.id}</span>
+                    <span class="muted small">购买日期：${order.createdAt}</span>
+                  </div>
+                  <div class="order-actions">
+                    <button class="primary-btn" data-detail="${order.dramaId}">立即观看</button>
+                  </div>
+                </div>
+              </article>
+            `).join("")}
+          </div>
+        ` : `
+          <div class="empty-orders">
+            <div class="empty-icon">🛒</div>
+            <h3>暂无购买记录</h3>
+            <p class="muted">去发现好剧，开启你的追剧之旅吧。</p>
+            <button class="primary-btn" data-route="home">发现短剧</button>
+          </div>
+        `}
+      </section>
+    </main>
+  `;
+}
+
 function detail() {
   const drama = state.selectedDrama || state.dramas[0];
   if (!drama) return `${topbar()}<main class="section"><p>暂无短剧</p></main>`;
   const currentEp = state.currentEpisode || 1;
   const historyRecord = state.watchHistory.find((h) => h.id === drama.id);
   const lastEpisode = historyRecord?.episode || 1;
+  const isPurchased = drama.isPurchased;
+  const previewEpisodes = 2;
+  const canWatch = isPurchased || currentEp <= previewEpisodes;
+
   return `
     ${topbar()}
     <main class="section detail-layout">
       <aside class="detail-panel">
         <img class="detail-cover" src="${drama.cover}" alt="${drama.title}" />
+        ${!isPurchased && drama.price > 0 ? `
+          <div class="purchase-box">
+            <div class="purchase-price">
+              <span class="price-label">全剧价格</span>
+              <span class="price-value">${money(drama.price)}</span>
+            </div>
+            <button class="primary-btn purchase-btn" data-purchase="${drama.id}">立即购买</button>
+            <p class="muted small">购买后可观看全部 ${drama.episodes} 集</p>
+          </div>
+        ` : isPurchased ? `
+          <div class="purchased-badge">
+            <span class="purchased-icon">✓</span>
+            <span>已购买 · 可观看全剧</span>
+          </div>
+        ` : ""}
         ${historyRecord ? `
           <div class="detail-history">
             <p class="muted small">上次看到：第 ${lastEpisode} 集 · ${formatWatchedAt(historyRecord.watchedAt)}</p>
@@ -678,25 +783,48 @@ function detail() {
             <p class="muted">${drama.synopsis}</p>
           </div>
         </div>
-        <div class="player-box">
-          <div>
-            <div class="play-symbol">▶</div>
-            <h2>第 ${currentEp} 集</h2>
-            <p>会员权益已模拟开通，可直接播放。</p>
-          </div>
+        <div class="player-box ${canWatch ? "" : "locked"}">
+          ${canWatch ? `
+            <div>
+              <div class="play-symbol">▶</div>
+              <h2>第 ${currentEp} 集</h2>
+              <p>正在播放中，享受追剧时光。</p>
+            </div>
+          ` : `
+            <div>
+              <div class="lock-symbol">🔒</div>
+              <h2>第 ${currentEp} 集</h2>
+              <p>本集需要购买后观看，前 ${previewEpisodes} 集可免费试看。</p>
+              <button class="primary-btn" data-purchase="${drama.id}" style="margin-top:16px">立即购买 ${money(drama.price)}</button>
+            </div>
+          `}
         </div>
         <div class="meta-row" style="margin-top:16px">
           <span class="pill">${drama.rating} 分</span>
           <span class="pill">${formatNumber(drama.views)} 播放</span>
-          <span class="pill">${money(drama.price)} 全剧</span>
+          <span class="pill">${drama.episodes} 集</span>
+          ${isPurchased ? `<span class="pill purchased-pill">已购买</span>` : `<span class="pill price-pill">${money(drama.price)} 全剧</span>`}
           ${drama.tags.map((tag) => `<span class="pill">${tag}</span>`).join("")}
         </div>
         <div class="episode-grid">
           ${Array.from({ length: Math.min(drama.episodes, 32) }, (_, index) => {
             const ep = index + 1;
-            return `<button class="${ep === currentEp ? "active" : ""}" data-episode="${ep}">${ep}</button>`;
+            const isLocked = !isPurchased && ep > previewEpisodes;
+            const classes = [
+              ep === currentEp ? "active" : "",
+              isLocked ? "locked-ep" : ""
+            ].filter(Boolean).join(" ");
+            return `<button class="${classes}" data-episode="${ep}" ${isLocked ? "disabled" : ""}>
+              ${isLocked ? `<span class="lock-icon">🔒</span>` : ""}
+              ${ep}
+            </button>`;
           }).join("")}
         </div>
+        ${!isPurchased && drama.episodes > previewEpisodes ? `
+          <p class="muted small" style="margin-top:8px;text-align:center">
+            🔒 前 ${previewEpisodes} 集免费试看，剩余 ${drama.episodes - previewEpisodes} 集需购买后观看
+          </p>
+        ` : ""}
       </section>
     </main>
   `;
@@ -1093,6 +1221,7 @@ async function render() {
   if (!state.dramas.length) await loadDramas();
   if (state.user) {
     await loadHistory();
+    await loadOrders();
   }
   if (state.route === "admin" && state.user?.role === "admin") {
     await loadAdmin();
@@ -1102,6 +1231,7 @@ async function render() {
   if (state.route === "rankings") await loadRankings(state.rankTab, state.rankStatus);
   if (state.route === "favorites") await loadFavorites();
   if (state.route === "history") await loadHistory();
+  if (state.route === "orders") await loadOrders();
   app.innerHTML = `<div class="app-shell">${view()}</div>`;
   bind();
 }
@@ -1112,6 +1242,7 @@ function view() {
   if (state.route === "rankings") return rankings();
   if (state.route === "history") return history();
   if (state.route === "favorites") return favorites();
+  if (state.route === "orders") return orders();
   if (state.route === "admin") return admin();
   return home();
 }
@@ -1187,8 +1318,14 @@ function bind() {
     if (node.closest(".episode-grid")) {
       node.addEventListener("click", async () => {
         const ep = Number(node.dataset.episode);
-        state.currentEpisode = ep;
         const drama = state.selectedDrama || state.dramas[0];
+        const previewEpisodes = 2;
+        const isPurchased = drama?.isPurchased;
+        if (!isPurchased && ep > previewEpisodes) {
+          toast("本集需要购买后观看");
+          return;
+        }
+        state.currentEpisode = ep;
         if (state.user && drama) {
           const progress = Math.min(Math.round((ep / (drama.episodes || 1)) * 100), 100);
           await addToHistory(drama.id, ep, progress);
@@ -1242,6 +1379,28 @@ function bind() {
       localStorage.setItem("user", JSON.stringify(state.user));
       toast("收藏状态已更新");
       render();
+    });
+  });
+  document.querySelectorAll("[data-purchase]").forEach((node) => {
+    node.addEventListener("click", async () => {
+      if (!state.user) return route("login");
+      const dramaId = node.dataset.purchase;
+      const drama = state.dramas.find((d) => d.id === dramaId) || state.selectedDrama;
+      if (!drama) return;
+      if (!confirm(`确定要以 ${money(drama.price)} 购买《${drama.title}》吗？`)) return;
+      try {
+        const order = await purchaseDrama(dramaId);
+        toast("购买成功！已解锁全剧观看");
+        if (state.selectedDrama && state.selectedDrama.id === dramaId) {
+          state.selectedDrama.isPurchased = true;
+        }
+        const dramaInList = state.dramas.find((d) => d.id === dramaId);
+        if (dramaInList) dramaInList.isPurchased = true;
+        await loadOrders();
+        render();
+      } catch (error) {
+        toast(error.message);
+      }
     });
   });
   document.querySelector("[data-logout]")?.addEventListener("click", logout);
