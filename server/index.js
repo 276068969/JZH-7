@@ -379,15 +379,26 @@ async function api(req, res, pathname, url) {
     if (errors.length) {
       return send(res, 400, { message: errors.join("；") });
     }
-    db.dramas[index] = {
-      ...db.dramas[index],
-      ...body,
-      rating: Number(body.rating ?? db.dramas[index].rating),
-      episodes: Number(body.episodes ?? db.dramas[index].episodes),
-      price: Number(body.price ?? db.dramas[index].price),
-      views: Number(body.views ?? db.dramas[index].views),
-      tags: Array.isArray(body.tags) ? body.tags : String(body.tags || "").split(",").map((tag) => tag.trim()).filter(Boolean)
-    };
+    const original = db.dramas[index];
+    const keys = Object.keys(body);
+    const updated = { ...original };
+
+    if (keys.includes("title")) updated.title = String(body.title);
+    if (keys.includes("genre")) updated.genre = String(body.genre);
+    if (keys.includes("status")) updated.status = String(body.status);
+    if (keys.includes("rating")) updated.rating = Number(body.rating);
+    if (keys.includes("episodes")) updated.episodes = Number(body.episodes);
+    if (keys.includes("price")) updated.price = Number(body.price);
+    if (keys.includes("views")) updated.views = Number(body.views);
+    if (keys.includes("cover")) updated.cover = String(body.cover);
+    if (keys.includes("synopsis")) updated.synopsis = String(body.synopsis);
+    if (keys.includes("tags")) {
+      updated.tags = Array.isArray(body.tags)
+        ? body.tags
+        : String(body.tags).split(",").map((tag) => tag.trim()).filter(Boolean);
+    }
+
+    db.dramas[index] = updated;
     writeDb(db);
     return send(res, 200, { drama: db.dramas[index] });
   }
