@@ -12,6 +12,8 @@ const state = {
   selectedDrama: null,
   currentEpisode: 1,
   filter: "全部",
+  searchKeyword: "",
+  statusFilter: "全部",
   token: localStorage.getItem("token") || "",
   user: JSON.parse(localStorage.getItem("user") || "null"),
   stats: null,
@@ -206,7 +208,29 @@ function topbar() {
 function home() {
   const featured = state.dramas[0];
   const genres = ["全部", ...new Set(state.dramas.map((drama) => drama.genre))];
-  const dramas = state.filter === "全部" ? state.dramas : state.dramas.filter((drama) => drama.genre === state.filter);
+  const statuses = ["全部", ...new Set(state.dramas.map((drama) => drama.status))];
+  
+  const keyword = state.searchKeyword.trim().toLowerCase();
+  let dramas = state.dramas;
+  
+  if (keyword) {
+    dramas = dramas.filter((drama) => 
+      drama.title.toLowerCase().includes(keyword) ||
+      drama.synopsis.toLowerCase().includes(keyword) ||
+      drama.genre.toLowerCase().includes(keyword) ||
+      drama.status.toLowerCase().includes(keyword) ||
+      drama.tags.some(tag => tag.toLowerCase().includes(keyword))
+    );
+  }
+  
+  if (state.filter !== "全部") {
+    dramas = dramas.filter((drama) => drama.genre === state.filter);
+  }
+  
+  if (state.statusFilter !== "全部") {
+    dramas = dramas.filter((drama) => drama.status === state.statusFilter);
+  }
+  
   const recentHistory = state.user ? state.watchHistory.slice(0, 4) : [];
   return `
     ${topbar()}
@@ -262,14 +286,47 @@ function home() {
         <div class="section-head">
           <div>
             <h2>精选短剧</h2>
-            <p class="muted">按题材快速筛选，支持收藏和播放详情。</p>
-          </div>
-          <div class="filters">
-            ${genres.map((genre) => `<button class="chip ${genre === state.filter ? "active" : ""}" data-filter="${genre}">${genre}</button>`).join("")}
+            <p class="muted">按名称、简介、题材或状态搜索，快速定位目标内容。</p>
           </div>
         </div>
+        <div class="search-toolbar">
+          <div class="search-box">
+            <span class="search-icon">🔍</span>
+            <input type="text" class="search-input" data-search-input placeholder="搜索短剧名称、简介、题材或状态..." value="${state.searchKeyword}" />
+            ${state.searchKeyword ? `<button class="search-clear" data-search-clear title="清除搜索">×</button>` : ""}
+          </div>
+          <div class="filter-groups">
+            <div class="filter-group">
+              <span class="filter-label">题材</span>
+              <div class="filters">
+                ${genres.map((genre) => `<button class="chip ${genre === state.filter ? "active" : ""}" data-filter="${genre}">${genre}</button>`).join("")}
+              </div>
+            </div>
+            <div class="filter-group">
+              <span class="filter-label">状态</span>
+              <div class="filters">
+                ${statuses.map((status) => `<button class="chip ${status === state.statusFilter ? "active" : ""}" data-status-filter="${status}">${status}</button>`).join("")}
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="search-result-info">
+          ${state.searchKeyword || state.filter !== "全部" || state.statusFilter !== "全部" ? `
+            <span class="result-count">找到 <strong>${dramas.length}</strong> 部相关短剧</span>
+            ${(state.searchKeyword || state.filter !== "全部" || state.statusFilter !== "全部") && dramas.length > 0 ? `
+              <button class="ghost-btn small-btn" data-reset-filters>重置筛选</button>
+            ` : ""}
+          ` : ""}
+        </div>
         <div class="grid">
-          ${dramas.map(dramaCard).join("")}
+          ${dramas.length ? dramas.map(dramaCard).join("") : `
+            <div class="empty-search">
+              <div class="empty-search-icon">🔍</div>
+              <h3>未找到相关短剧</h3>
+              <p class="muted">试试其他关键词，或调整筛选条件</p>
+              <button class="primary-btn" data-reset-filters>重置筛选条件</button>
+            </div>
+          `}
         </div>
       </section>
     </main>
@@ -1029,6 +1086,47 @@ function bind() {
   document.querySelectorAll("[data-filter]").forEach((node) => {
     node.addEventListener("click", () => {
       state.filter = node.dataset.filter;
+      render();
+    });
+  });
+
+  document.querySelectorAll("[data-status-filter]").forEach((node) => {
+    node.addEventListener("click", () => {
+      state.statusFilter = node.dataset.statusFilter;
+      render();
+    });
+  });
+
+  const searchInput = document.querySelector("[data-search-input]");
+  if (searchInput) {
+    let searchTimeout;
+    searchInput.addEventListener("input", (e) => {
+      clearTimeout(searchTimeout);
+      searchTimeout = setTimeout(() => {
+        state.searchKeyword = e.target.value;
+        render();
+      }, 200);
+    });
+    searchInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        state.searchKeyword = e.target.value;
+        render();
+      }
+    });
+    searchInput.focus();
+    searchInput.setSelectionRange(searchInput.value.length, searchInput.value.length);
+  }
+
+  document.querySelector("[data-search-clear]")?.addEventListener("click", () => {
+    state.searchKeyword = "";
+    render();
+  });
+
+  document.querySelectorAll("[data-reset-filters]").forEach((node) => {
+    node.addEventListener("click", () => {
+      state.searchKeyword = "";
+      state.filter = "全部";
+      state.statusFilter = "全部";
       render();
     });
   });
