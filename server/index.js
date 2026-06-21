@@ -78,7 +78,7 @@ function enrichDrama(db, drama) {
   return { ...drama, revenue };
 }
 
-function validateDrama(body) {
+function validateDramaCreate(body) {
   const errors = [];
 
   const title = String(body.title || "").trim();
@@ -88,19 +88,25 @@ function validateDrama(body) {
     errors.push("短剧名称不能超过 100 个字符");
   }
 
-  const rating = Number(body.rating);
-  if (body.rating !== undefined && body.rating !== "" && (isNaN(rating) || rating < 0 || rating > 10)) {
-    errors.push("评分必须在 0 到 10 之间");
+  if (body.rating !== undefined && body.rating !== "") {
+    const rating = Number(body.rating);
+    if (isNaN(rating) || rating < 0 || rating > 10) {
+      errors.push("评分必须在 0 到 10 之间");
+    }
   }
 
-  const episodes = Number(body.episodes);
-  if (body.episodes !== undefined && body.episodes !== "" && (isNaN(episodes) || !Number.isInteger(episodes) || episodes < 1 || episodes > 999)) {
-    errors.push("集数必须是 1 到 999 之间的整数");
+  if (body.episodes !== undefined && body.episodes !== "") {
+    const episodes = Number(body.episodes);
+    if (isNaN(episodes) || !Number.isInteger(episodes) || episodes < 1 || episodes > 999) {
+      errors.push("集数必须是 1 到 999 之间的整数");
+    }
   }
 
-  const price = Number(body.price);
-  if (body.price !== undefined && body.price !== "" && (isNaN(price) || price < 0)) {
-    errors.push("定价不能为负数");
+  if (body.price !== undefined && body.price !== "") {
+    const price = Number(body.price);
+    if (isNaN(price) || price < 0) {
+      errors.push("定价不能为负数");
+    }
   }
 
   const cover = String(body.cover || "").trim();
@@ -110,9 +116,64 @@ function validateDrama(body) {
     errors.push("封面 URL 格式不正确");
   }
 
-  const synopsis = String(body.synopsis || "").trim();
-  if (synopsis.length > 500) {
-    errors.push("简介不能超过 500 个字符");
+  if (body.synopsis !== undefined) {
+    const synopsis = String(body.synopsis || "").trim();
+    if (synopsis.length > 500) {
+      errors.push("简介不能超过 500 个字符");
+    }
+  }
+
+  return errors;
+}
+
+function validateDramaUpdate(body) {
+  const errors = [];
+  const keys = Object.keys(body);
+
+  if (keys.includes("title")) {
+    const title = String(body.title || "").trim();
+    if (!title) {
+      errors.push("短剧名称不能为空");
+    } else if (title.length > 100) {
+      errors.push("短剧名称不能超过 100 个字符");
+    }
+  }
+
+  if (keys.includes("rating")) {
+    const rating = Number(body.rating);
+    if (body.rating === "" || isNaN(rating) || rating < 0 || rating > 10) {
+      errors.push("评分必须在 0 到 10 之间");
+    }
+  }
+
+  if (keys.includes("episodes")) {
+    const episodes = Number(body.episodes);
+    if (body.episodes === "" || isNaN(episodes) || !Number.isInteger(episodes) || episodes < 1 || episodes > 999) {
+      errors.push("集数必须是 1 到 999 之间的整数");
+    }
+  }
+
+  if (keys.includes("price")) {
+    const price = Number(body.price);
+    if (body.price === "" || isNaN(price) || price < 0) {
+      errors.push("定价不能为负数");
+    }
+  }
+
+  if (keys.includes("cover")) {
+    const cover = String(body.cover || "").trim();
+    if (!cover) {
+      errors.push("封面 URL 不能为空");
+    } else if (!/^https?:\/\/.+/.test(cover)) {
+      errors.push("封面 URL 格式不正确");
+    }
+  }
+
+  if (keys.includes("synopsis")) {
+    const synopsis = String(body.synopsis || "").trim();
+    if (synopsis.length > 500) {
+      errors.push("简介不能超过 500 个字符");
+    }
   }
 
   return errors;
@@ -286,7 +347,7 @@ async function api(req, res, pathname, url) {
   if (req.method === "POST" && pathname === "/api/admin/dramas") {
     if (!requireAdmin(req, res)) return;
     const body = await readBody(req);
-    const errors = validateDrama(body);
+    const errors = validateDramaCreate(body);
     if (errors.length) {
       return send(res, 400, { message: errors.join("；") });
     }
@@ -314,7 +375,7 @@ async function api(req, res, pathname, url) {
     const index = db.dramas.findIndex((item) => item.id === id);
     if (index < 0) return send(res, 404, { message: "短剧不存在" });
     const body = await readBody(req);
-    const errors = validateDrama(body);
+    const errors = validateDramaUpdate(body);
     if (errors.length) {
       return send(res, 400, { message: errors.join("；") });
     }
