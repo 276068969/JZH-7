@@ -80,6 +80,46 @@ function toast(message) {
   setTimeout(() => node.remove(), 1900);
 }
 
+function validateDramaForm(data) {
+  const errors = [];
+
+  const title = String(data.title || "").trim();
+  if (!title) {
+    errors.push("短剧名称不能为空");
+  } else if (title.length > 100) {
+    errors.push("短剧名称不能超过 100 个字符");
+  }
+
+  const rating = Number(data.rating);
+  if (data.rating !== undefined && data.rating !== "" && (isNaN(rating) || rating < 0 || rating > 10)) {
+    errors.push("评分必须在 0 到 10 之间");
+  }
+
+  const episodes = Number(data.episodes);
+  if (data.episodes !== undefined && data.episodes !== "" && (isNaN(episodes) || !Number.isInteger(episodes) || episodes < 1 || episodes > 999)) {
+    errors.push("集数必须是 1 到 999 之间的整数");
+  }
+
+  const price = Number(data.price);
+  if (data.price !== undefined && data.price !== "" && (isNaN(price) || price < 0)) {
+    errors.push("定价不能为负数");
+  }
+
+  const cover = String(data.cover || "").trim();
+  if (!cover) {
+    errors.push("封面 URL 不能为空");
+  } else if (!/^https?:\/\/.+/.test(cover)) {
+    errors.push("封面 URL 格式不正确");
+  }
+
+  const synopsis = String(data.synopsis || "").trim();
+  if (synopsis.length > 500) {
+    errors.push("简介不能超过 500 个字符");
+  }
+
+  return errors;
+}
+
 function setSession(token, user) {
   state.token = token;
   state.user = user;
@@ -1254,6 +1294,11 @@ function bind() {
   document.querySelector("[data-create-form]")?.addEventListener("submit", async (event) => {
     event.preventDefault();
     const body = Object.fromEntries(new FormData(event.currentTarget).entries());
+    const errors = validateDramaForm(body);
+    if (errors.length) {
+      toast(errors.join("；"));
+      return;
+    }
     try {
       await api("/api/admin/dramas", { method: "POST", body: JSON.stringify(body) });
       await loadDramas();
