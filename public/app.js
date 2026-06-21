@@ -16,7 +16,8 @@ const state = {
   user: JSON.parse(localStorage.getItem("user") || "null"),
   stats: null,
   users: [],
-  orders: []
+  orders: [],
+  revenueAnalysis: null
 };
 
 const app = document.querySelector("#app");
@@ -112,6 +113,11 @@ async function loadAdmin() {
   state.stats = data.stats;
   state.users = data.users;
   state.orders = data.orders;
+}
+
+async function loadRevenueAnalysis() {
+  const data = await api("/api/admin/revenue-analysis");
+  state.revenueAnalysis = data;
 }
 
 async function loadRankings(type, status) {
@@ -628,6 +634,7 @@ function admin() {
     <main class="admin-layout">
       <aside class="sidebar">
         <button class="side-btn ${state.adminTab === "dashboard" ? "active" : ""}" data-admin-tab="dashboard">数据看板</button>
+        <button class="side-btn ${state.adminTab === "revenue" ? "active" : ""}" data-admin-tab="revenue">收入分析</button>
         <button class="side-btn ${state.adminTab === "dramas" ? "active" : ""}" data-admin-tab="dramas">短剧管理</button>
         <button class="side-btn ${state.adminTab === "orders" ? "active" : ""}" data-admin-tab="orders">订单用户</button>
       </aside>
@@ -640,6 +647,7 @@ function admin() {
           <div class="stat-card"><span class="muted">播放</span><strong>${formatNumber(stats.views)}</strong></div>
         </div>
         ${state.adminTab === "dashboard" ? adminDashboard() : ""}
+        ${state.adminTab === "revenue" ? adminRevenue() : ""}
         ${state.adminTab === "dramas" ? adminDramas() : ""}
         ${state.adminTab === "orders" ? adminOrders() : ""}
       </section>
@@ -656,6 +664,244 @@ function adminDashboard() {
         <tbody>${state.dramas.map((drama) => `<tr><td>${drama.title}</td><td>${drama.genre}</td><td>${formatNumber(drama.views)}</td><td>${money(drama.revenue)}</td><td>${drama.rating}</td></tr>`).join("")}</tbody>
       </table>
     </section>
+  `;
+}
+
+function adminRevenue() {
+  const data = state.revenueAnalysis;
+  if (!data) {
+    return `<section class="admin-panel"><p class="muted">数据加载中...</p></section>`;
+  }
+
+  const overview = data.overview;
+  const maxRevenue = Math.max(...data.dramaRankings.map((d) => d.revenue), 1);
+  const maxGenreRevenue = Math.max(...data.genreDistribution.map((g) => g.revenue), 1);
+  const maxTierCount = Math.max(...data.spendingTiers.map((t) => t.count), 1);
+
+  return `
+    <section class="admin-panel revenue-header">
+      <div class="section-head">
+        <div>
+          <h2>收入分析</h2>
+          <p class="muted">基于订单数据，多维度分析短剧收入表现，助力运营决策。</p>
+        </div>
+      </div>
+      <div class="revenue-overview">
+        <div class="revenue-stat-card">
+          <div class="revenue-stat-icon" style="background: linear-gradient(135deg, #e84363, #ff6b8a)">💰</div>
+          <div class="revenue-stat-content">
+            <span class="revenue-stat-label">总收入</span>
+            <strong class="revenue-stat-value">${money(overview.totalRevenue)}</strong>
+          </div>
+        </div>
+        <div class="revenue-stat-card">
+          <div class="revenue-stat-icon" style="background: linear-gradient(135deg, #0f9f9a, #2dd4bf)">📦</div>
+          <div class="revenue-stat-content">
+            <span class="revenue-stat-label">总订单</span>
+            <strong class="revenue-stat-value">${overview.totalOrders} 单</strong>
+          </div>
+        </div>
+        <div class="revenue-stat-card">
+          <div class="revenue-stat-icon" style="background: linear-gradient(135deg, #6366f1, #818cf8)">👥</div>
+          <div class="revenue-stat-content">
+            <span class="revenue-stat-label">付费用户</span>
+            <strong class="revenue-stat-value">${overview.payingUsers} 人</strong>
+          </div>
+        </div>
+        <div class="revenue-stat-card">
+          <div class="revenue-stat-icon" style="background: linear-gradient(135deg, #f59e0b, #fbbf24)">📊</div>
+          <div class="revenue-stat-content">
+            <span class="revenue-stat-label">ARPU</span>
+            <strong class="revenue-stat-value">${money(overview.arpu)}</strong>
+            <span class="revenue-stat-sub">每付费用户平均收入</span>
+          </div>
+        </div>
+        <div class="revenue-stat-card">
+          <div class="revenue-stat-icon" style="background: linear-gradient(135deg, #8b5cf6, #a78bfa)">💎</div>
+          <div class="revenue-stat-content">
+            <span class="revenue-stat-label">客单价</span>
+            <strong class="revenue-stat-value">${money(overview.avgOrderValue)}</strong>
+            <span class="revenue-stat-sub">每订单平均金额</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="revenue-grid">
+      <section class="admin-panel">
+        <div class="section-head">
+          <div>
+            <h3>短剧收入排行</h3>
+            <p class="muted">按收入排序，识别最具商业价值的内容</p>
+          </div>
+        </div>
+        <div class="ranking-table-wrapper">
+          <table class="ranking-table">
+            <thead>
+              <tr>
+                <th width="50">排名</th>
+                <th>短剧</th>
+                <th width="100">题材</th>
+                <th width="100">收入</th>
+                <th width="80">订单</th>
+                <th width="90">付费用户</th>
+                <th width="90">转化率</th>
+                <th width="150">收入占比</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${data.dramaRankings.map((drama, index) => {
+                const rankColors = ["#e84363", "#f59e0b", "#0f9f9a", "#6366f1", "#6b7280"];
+                const rankBg = index < 3 ? rankColors[index] : "#9ca3af";
+                const revenuePercent = maxRevenue > 0 ? Math.round((drama.revenue / maxRevenue) * 100) : 0;
+                return `
+                  <tr class="${drama.revenue === 0 ? 'zero-revenue' : ''}">
+                    <td><span class="rank-badge" style="background:${rankBg}">${index + 1}</span></td>
+                    <td>
+                      <div class="drama-name-cell">
+                        <div class="drama-thumb" style="background-image:url('${drama.cover}')"></div>
+                        <div>
+                          <div class="drama-name">${drama.title}</div>
+                          <div class="drama-views muted">${formatNumber(drama.views)} 播放</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td><span class="genre-tag">${drama.genre}</span></td>
+                    <td><strong class="revenue-value">${money(drama.revenue)}</strong></td>
+                    <td>${drama.orders}</td>
+                    <td>${drama.payingUsers}</td>
+                    <td><span class="conversion-rate ${drama.conversionRate > 0.05 ? 'high' : drama.conversionRate > 0.01 ? 'medium' : 'low'}">${drama.conversionRate}%</span></td>
+                    <td>
+                      <div class="progress-bar-cell">
+                        <div class="progress-track">
+                          <div class="progress-fill-revenue" style="width:${revenuePercent}%"></div>
+                        </div>
+                        <span class="progress-label">${revenuePercent}%</span>
+                      </div>
+                    </td>
+                  </tr>
+                `;
+              }).join("")}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <div class="revenue-side-grid">
+        <section class="admin-panel">
+          <div class="section-head">
+            <div>
+              <h3>题材收入分布</h3>
+              <p class="muted">各题材订单与收入对比</p>
+            </div>
+          </div>
+          <div class="chart-bar-list">
+            ${data.genreDistribution.map((item) => {
+              const percent = maxGenreRevenue > 0 ? Math.round((item.revenue / maxGenreRevenue) * 100) : 0;
+              return `
+                <div class="chart-bar-item">
+                  <div class="chart-bar-header">
+                    <span class="chart-bar-label">${item.genre}</span>
+                    <span class="chart-bar-value">${money(item.revenue)} / ${item.orders}单</span>
+                  </div>
+                  <div class="chart-bar-track">
+                    <div class="chart-bar-fill genre-${item.genre}" style="width:${percent}%"></div>
+                  </div>
+                  <div class="chart-bar-sub">${item.dramas} 部短剧</div>
+                </div>
+              `;
+            }).join("")}
+          </div>
+        </section>
+
+        <section class="admin-panel">
+          <div class="section-head">
+            <div>
+              <h3>付费用户分布</h3>
+              <p class="muted">按消费金额分层</p>
+            </div>
+          </div>
+          <div class="tier-chart">
+            ${data.spendingTiers.map((tier) => {
+              const percent = maxTierCount > 0 ? Math.round((tier.count / maxTierCount) * 100) : 0;
+              const tierColors = ["#10b981", "#3b82f6", "#8b5cf6", "#f59e0b"];
+              const colorIndex = data.spendingTiers.indexOf(tier);
+              return `
+                <div class="tier-item">
+                  <div class="tier-header">
+                    <span class="tier-label" style="color:${tierColors[colorIndex]}">${tier.label}</span>
+                    <span class="tier-count">${tier.count} 人</span>
+                  </div>
+                  <div class="tier-bar-track">
+                    <div class="tier-bar-fill" style="width:${percent}%; background:${tierColors[colorIndex]}"></div>
+                  </div>
+                  <div class="tier-footer">
+                    <span class="muted small">贡献 ${money(tier.revenue)}</span>
+                    <span class="muted small">${tier.count > 0 ? `人均 ${money(Math.round(tier.revenue / tier.count))}` : ''}</span>
+                  </div>
+                </div>
+              `;
+            }).join("")}
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <div class="revenue-insights-grid">
+      <section class="admin-panel insight-panel high-performers">
+        <div class="section-head">
+          <div>
+            <h3>🔥 高转化短剧</h3>
+            <p class="muted">转化率高、收入表现好的优质内容</p>
+          </div>
+        </div>
+        ${data.highPerformers.length ? `
+          <div class="insight-list">
+            ${data.highPerformers.map((drama, index) => `
+              <div class="insight-item">
+                <div class="insight-rank">${index + 1}</div>
+                <div class="insight-thumb" style="background-image:url('${drama.cover}')"></div>
+                <div class="insight-content">
+                  <div class="insight-title">${drama.title}</div>
+                  <div class="insight-meta">
+                    <span class="insight-tag">${drama.genre}</span>
+                    <span class="insight-revenue">${money(drama.revenue)}</span>
+                    <span class="insight-conversion">转化率 ${drama.conversionRate}%</span>
+                  </div>
+                </div>
+              </div>
+            `).join("")}
+          </div>
+        ` : `<div class="empty-insight"><p class="muted">暂无高转化短剧数据</p></div>`}
+      </section>
+
+      <section class="admin-panel insight-panel low-performers">
+        <div class="section-head">
+          <div>
+            <h3>⚠️ 低收入内容</h3>
+            <p class="muted">播放量高但零收入，需关注转化问题</p>
+          </div>
+        </div>
+        ${data.lowPerformers.length ? `
+          <div class="insight-list">
+            ${data.lowPerformers.map((drama, index) => `
+              <div class="insight-item warning">
+                <div class="insight-rank warning">${index + 1}</div>
+                <div class="insight-thumb" style="background-image:url('${drama.cover}')"></div>
+                <div class="insight-content">
+                  <div class="insight-title">${drama.title}</div>
+                  <div class="insight-meta">
+                    <span class="insight-tag">${drama.genre}</span>
+                    <span class="insight-views">${formatNumber(drama.views)} 播放</span>
+                    <span class="insight-warning">零收入</span>
+                  </div>
+                </div>
+              </div>
+            `).join("")}
+          </div>
+        ` : `<div class="empty-insight"><p class="muted">暂无低收入内容，表现良好！</p></div>`}
+      </section>
+    </div>
   `;
 }
 
@@ -754,6 +1000,7 @@ async function render() {
   if (state.route === "admin" && state.user?.role === "admin") {
     await loadAdmin();
     if (state.adminTab === "dramas") await loadAdminDramas(state.adminDramaStatus);
+    if (state.adminTab === "revenue") await loadRevenueAnalysis();
   }
   if (state.route === "rankings") await loadRankings(state.rankTab, state.rankStatus);
   if (state.route === "favorites") await loadFavorites();

@@ -293,6 +293,110 @@ async function api(req, res, pathname, url) {
     return send(res, 200, { ok: true });
   }
 
+  if (req.method === "GET" && pathname === "/api/admin/revenue-analysis") {
+    if (!requireAdmin(req, res)) return;
+    const paidOrders = db.orders.filter((order) => order.status === "paid");
+
+    const totalRevenue = paidOrders.reduce((sum, order) => sum + order.amount, 0);
+    const totalOrders = paidOrders.length;
+    const payingUserIds = [...new Set(paidOrders.map((order) => order.userId))];
+    const payingUsers = payingUserIds.length;
+    const arpu = payingUsers > 0 ? Math.round((totalRevenue / payingUsers) * 100) / 100 : 0;
+    const avgOrderValue = totalOrders > 0 ? Math.round((totalRevenue / totalOrders) * 100) / 100 : 0;
+
+    const dramaRevenueMap = new Map();
+    paidOrders.forEach((order) => {
+      if (!dramaRevenueMap.has(order.dramaId)) {
+        dramaRevenueMap.set(order.dramaId, { revenue: 0, orders: 0, userIds: new Set() });
+      }
+      const data = dramaRevenueMap.get(order.dramaId);
+      data.revenue += order.amount;
+      data.orders += 1;
+      data.userIds.add(order.userId);
+    });
+
+    const dramaRankings = db.dramas.map((drama) => {
+      const data = dramaRevenueMap.get(drama.id) || { revenue: 0, orders: 0, userIds: new Set() };
+      const uniqueUsers = data.userIds.size;
+      const conversionRate = drama.views > 0 ? Math.round((uniqueUsers / drama.views) * 10000) / 100 : 0;
+      return {
+        ...drama,
+        revenue: data.revenue,
+        orders: data.orders,
+        payingUsers: uniqueUsers,
+        conversionRate
+      };
+    }).sort((a, b) => b.revenue - a.revenue);
+
+    const genreStats = {};
+    dramaRankings.forEach((drama) => {
+      if (!genreStats[drama.genre]) {
+        genreStats[drama.genre] = { revenue: 0, orders: 0, dramas: 0 };
+      }
+      genreStats[drama.genre].revenue += drama.revenue;
+      genreStats[drama.genre].orders += drama.orders;
+      genreStats[drama.genre].dramas += 1;
+    });
+    const genreDistribution = Object.entries(genreStats)
+      .map(([genre, stats]) => ({ genre, ...stats }))
+      .sort((a, b) => b.revenue - a.revenue);
+
+    const userSpendingMap = new Map();
+    paidOrders.forEach((order) => {
+      if (!userSpendingMap.has(order.userId)) {
+        userSpendingMap.set(order.userId, 0);
+      }
+      userSpendingMap.set(order.userId, userSpendingMap.get(order.userId) + order.amount);
+    });
+
+    const spendingTiers = [
+      { label: "0-20元", min: 0, max: 20, count: 0, revenue: 0 },
+      { label: "20-50元", min: 20, max: 50, count: 0, revenue: 0 },
+      { label: "50-100元", min: 50, max: 100, count: 0, revenue: 0 },
+      { label: "100元以上", min: 100, max: Infinity, count: 0, revenue: 0 }
+    ];
+
+    userSpendingMap.forEach((spending, userId) => {
+      const tier = spendingTiers.find((t) => spending >= t.min && spending < t.max);
+      if (tier) {
+        tier.count += 1;
+        tier.revenue += spending;
+      }
+    });
+
+    const dateStats = {};
+    paidOrders.forEach((order) => {
+      const date = order.createdAt;
+      if (!dateStats[date]) {
+        dateStats[date] = { orders: 0, revenue: 0 };
+      }
+      dateStats[date].orders += 1;
+      dateStats[date].revenue += order.amount;
+    });
+    const dailyOrders = Object.entries(dateStats)
+      .map(([date, stats]) => ({ date, ...stats }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+
+    const highPerformers = dramaRankings.filter((d) => d.revenue > 0 && d.conversionRate > 0.01).slice(0, 5);
+    const lowPerformers = dramaRankings.filter((d) => d.views > 1000 && d.revenue === 0).slice(0, 5);
+
+    return send(res, 200, {
+      overview: {
+        totalRevenue,
+        totalOrders,
+        payingUsers,
+        arpu,
+        avgOrderValue
+      },
+      dramaRankings,
+      genreDistribution,
+      spendingTiers,
+      dailyOrders,
+      highPerformers,
+      lowPerformers
+    });
+  }
+
   send(res, 404, { message: "接口不存在" });
 }
 

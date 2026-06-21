@@ -1616,3 +1616,556 @@ th {
     grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
   }
 }
+
+.revenue-header {
+  margin-bottom: 18px;
+}
+
+.revenue-overview {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.revenue-stat-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: linear-gradient(135deg, #fafbff, #ffffff);
+  transition: all 0.2s ease;
+}
+
+.revenue-stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(30, 45, 70, 0.08);
+  border-color: #cdd5e1;
+}
+
+.revenue-stat-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  font-size: 24px;
+  flex-shrink: 0;
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.12);
+}
+
+.revenue-stat-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.revenue-stat-label {
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.revenue-stat-value {
+  font-size: 22px;
+  font-weight: 900;
+  color: var(--ink);
+  line-height: 1.2;
+}
+
+.revenue-stat-sub {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.revenue-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(320px, 0.4fr);
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.revenue-side-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.ranking-table-wrapper {
+  overflow-x: auto;
+  margin-top: 8px;
+}
+
+.ranking-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.ranking-table th {
+  padding: 12px 10px;
+  border-bottom: 2px solid var(--line);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  text-align: left;
+  background: var(--soft);
+}
+
+.ranking-table td {
+  padding: 14px 10px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: middle;
+}
+
+.ranking-table tbody tr {
+  transition: background 0.15s ease;
+}
+
+.ranking-table tbody tr:hover {
+  background: #f8fafc;
+}
+
+.ranking-table tbody tr.zero-revenue {
+  opacity: 0.6;
+}
+
+.rank-badge {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  color: #fff;
+  font-weight: 900;
+  font-size: 14px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+}
+
+.drama-name-cell {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.drama-thumb {
+  width: 44px;
+  height: 56px;
+  border-radius: 6px;
+  background: #ccd5e1 center/cover;
+  flex-shrink: 0;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+.drama-name {
+  font-weight: 700;
+  color: var(--ink);
+  font-size: 14px;
+  margin-bottom: 2px;
+}
+
+.drama-views {
+  font-size: 12px;
+}
+
+.genre-tag {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #4338ca;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.revenue-value {
+  color: var(--brand-dark);
+  font-weight: 800;
+  font-size: 15px;
+}
+
+.conversion-rate {
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-weight: 700;
+  font-size: 12px;
+}
+
+.conversion-rate.high {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.conversion-rate.medium {
+  background: #fef9c3;
+  color: #a16207;
+}
+
+.conversion-rate.low {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.progress-bar-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.progress-track {
+  flex: 1;
+  height: 8px;
+  background: var(--soft);
+  border-radius: 999px;
+  overflow: hidden;
+  min-width: 80px;
+}
+
+.progress-fill-revenue {
+  height: 100%;
+  background: linear-gradient(90deg, var(--brand), #ff6b8a);
+  border-radius: 999px;
+  transition: width 0.6s ease;
+}
+
+.progress-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  min-width: 36px;
+  text-align: right;
+}
+
+.chart-bar-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 8px;
+}
+
+.chart-bar-item {
+  padding: 12px;
+  background: var(--soft);
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.chart-bar-item:hover {
+  background: #eef2ff;
+}
+
+.chart-bar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.chart-bar-label {
+  font-weight: 700;
+  color: var(--ink);
+  font-size: 14px;
+}
+
+.chart-bar-value {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--brand-dark);
+}
+
+.chart-bar-track {
+  height: 10px;
+  background: #e2e8f0;
+  border-radius: 999px;
+  overflow: hidden;
+  margin-bottom: 6px;
+}
+
+.chart-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.6s ease;
+}
+
+.chart-bar-fill.genre-都市 {
+  background: linear-gradient(90deg, #6366f1, #818cf8);
+}
+
+.chart-bar-fill.genre-甜宠 {
+  background: linear-gradient(90deg, #ec4899, #f472b6);
+}
+
+.chart-bar-fill.genre-古装 {
+  background: linear-gradient(90deg, #f59e0b, #fbbf24);
+}
+
+.chart-bar-fill.genre-治愈 {
+  background: linear-gradient(90deg, #10b981, #34d399);
+}
+
+.chart-bar-sub {
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.tier-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 8px;
+}
+
+.tier-item {
+  padding: 12px;
+  background: var(--soft);
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.tier-item:hover {
+  background: #f0fdf4;
+}
+
+.tier-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.tier-label {
+  font-weight: 800;
+  font-size: 14px;
+}
+
+.tier-count {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.tier-bar-track {
+  height: 12px;
+  background: #e2e8f0;
+  border-radius: 999px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.tier-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.6s ease;
+}
+
+.tier-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.revenue-insights-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.insight-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+.insight-panel.high-performers {
+  border-left: 4px solid #10b981;
+}
+
+.insight-panel.low-performers {
+  border-left: 4px solid #f59e0b;
+}
+
+.insight-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.insight-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: var(--soft);
+  border-radius: 10px;
+  transition: all 0.2s ease;
+}
+
+.insight-item:hover {
+  transform: translateX(4px);
+  background: #f0fdf4;
+}
+
+.insight-item.warning:hover {
+  background: #fffbeb;
+}
+
+.insight-rank {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: #fff;
+  font-weight: 900;
+  font-size: 13px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  box-shadow: 0 4px 10px rgba(16, 185, 129, 0.3);
+}
+
+.insight-rank.warning {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  box-shadow: 0 4px 10px rgba(245, 158, 11, 0.3);
+}
+
+.insight-thumb {
+  width: 48px;
+  height: 60px;
+  border-radius: 6px;
+  background: #ccd5e1 center/cover;
+  flex-shrink: 0;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+.insight-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.insight-title {
+  font-weight: 700;
+  color: var(--ink);
+  font-size: 14px;
+  margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.insight-meta {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.insight-tag {
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: #eef2ff;
+  color: #4338ca;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.insight-revenue {
+  font-size: 12px;
+  font-weight: 700;
+  color: #059669;
+}
+
+.insight-conversion {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.insight-views {
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.insight-warning {
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: #fee2e2;
+  color: #b91c1c;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.empty-insight {
+  padding: 30px 20px;
+  text-align: center;
+}
+
+.empty-insight p {
+  margin: 0;
+}
+
+.revenue-header h3,
+.insight-panel h3 {
+  margin-bottom: 4px;
+  font-size: 18px;
+  font-weight: 800;
+}
+
+@media (max-width: 1200px) {
+  .revenue-overview {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .revenue-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .revenue-side-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .revenue-overview {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .revenue-side-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .revenue-insights-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .revenue-stat-card {
+    padding: 12px;
+    gap: 10px;
+  }
+
+  .revenue-stat-icon {
+    width: 44px;
+    height: 44px;
+    font-size: 20px;
+  }
+
+  .revenue-stat-value {
+    font-size: 18px;
+  }
+
+  .ranking-table th,
+  .ranking-table td {
+    padding: 10px 8px;
+    font-size: 13px;
+  }
+
+  .drama-thumb {
+    width: 36px;
+    height: 46px;
+  }
+}
