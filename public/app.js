@@ -751,15 +751,26 @@ function detail() {
   const currentEp = state.currentEpisode || 1;
   const historyRecord = state.watchHistory.find((h) => h.id === drama.id);
   const lastEpisode = historyRecord?.episode || 1;
+  const watchedProgress = historyRecord?.progress || 0;
   const isPurchased = drama.isPurchased;
   const previewEpisodes = 2;
   const canWatch = isPurchased || currentEp <= previewEpisodes;
+  const totalEp = drama.episodes;
+  const hasPrev = currentEp > 1;
+  const hasNext = currentEp < totalEp;
+  const watchedEpisodes = Math.min(lastEpisode, currentEp);
 
   return `
     ${topbar()}
     <main class="section detail-layout">
       <aside class="detail-panel">
-        <img class="detail-cover" src="${drama.cover}" alt="${drama.title}" />
+        <div class="detail-cover-wrap">
+          <img class="detail-cover" src="${drama.cover}" alt="${drama.title}" />
+          <div class="detail-cover-overlay">
+            <div class="cover-ep-badge">第 ${currentEp} 集</div>
+            <div class="cover-progress-text">共 ${totalEp} 集</div>
+          </div>
+        </div>
         ${!isPurchased && drama.price > 0 ? `
           <div class="purchase-box">
             <div class="purchase-price">
@@ -781,24 +792,64 @@ function detail() {
             <button class="ghost-btn continue-last-btn" data-continue-last="${lastEpisode}">继续观看</button>
           </div>
         ` : ""}
+        <div class="watch-progress-card">
+          <div class="watch-progress-header">
+            <span class="watch-progress-label">追剧进度</span>
+            <span class="watch-progress-count">${watchedEpisodes} / ${totalEp} 集</span>
+          </div>
+          <div class="watch-progress-bar">
+            <div class="watch-progress-fill" style="width:${Math.round((watchedEpisodes / totalEp) * 100)}%"></div>
+          </div>
+          <div class="watch-progress-footer">
+            <span class="muted small">已观看 ${Math.round((watchedEpisodes / totalEp) * 100)}%</span>
+            <span class="muted small">还剩 ${totalEp - watchedEpisodes} 集</span>
+          </div>
+        </div>
       </aside>
       <section class="detail-panel">
-        <div class="section-head">
+        <div class="section-head detail-header">
           <div>
             <p class="eyebrow">${drama.genre} · ${drama.status}</p>
-            <h1>${drama.title}</h1>
+            <h1 class="detail-title">${drama.title}</h1>
             <p class="muted">${drama.synopsis}</p>
           </div>
         </div>
-        <div class="player-box ${canWatch ? "" : "locked"}">
+        <div class="player-box ${canWatch ? "" : "locked"}" style="background-image: linear-gradient(rgba(16, 24, 38, 0.24), rgba(16, 24, 38, 0.85)), url('${drama.cover}')">
           ${canWatch ? `
-            <div>
+            <div class="player-content">
+              <div class="player-ep-info">
+                <span class="player-ep-current">第 ${currentEp} 集</span>
+                <span class="player-ep-divider">/</span>
+                <span class="player-ep-total">共 ${totalEp} 集</span>
+              </div>
+              <div class="player-title">${drama.title}</div>
               <div class="play-symbol">▶</div>
-              <h2>第 ${currentEp} 集</h2>
-              <p>正在播放中，享受追剧时光。</p>
+              <p class="player-subtitle">正在播放中，享受追剧时光</p>
+              <div class="player-nav">
+                <button class="player-nav-btn ${hasPrev ? "" : "disabled"}" ${hasPrev ? `data-episode="${currentEp - 1}"` : "disabled"} title="上一集">
+                  <span class="nav-icon">⏮</span>
+                  <span class="nav-label">上一集</span>
+                </button>
+                <button class="player-play-btn" title="播放/暂停">
+                  <span class="play-icon">▶</span>
+                </button>
+                <button class="player-nav-btn ${hasNext ? "" : "disabled"}" ${hasNext ? `data-episode="${currentEp + 1}"` : "disabled"} title="下一集">
+                  <span class="nav-label">下一集</span>
+                  <span class="nav-icon">⏭</span>
+                </button>
+              </div>
+              <div class="player-progress">
+                <div class="player-progress-bar">
+                  <div class="player-progress-fill" style="width:${watchedProgress}%"></div>
+                </div>
+                <div class="player-progress-time">
+                  <span>00:00</span>
+                  <span>02:30</span>
+                </div>
+              </div>
             </div>
           ` : `
-            <div>
+            <div class="player-content">
               <div class="lock-symbol">🔒</div>
               <h2>第 ${currentEp} 集</h2>
               <p>本集需要购买后观看，前 ${previewEpisodes} 集可免费试看。</p>
@@ -813,25 +864,43 @@ function detail() {
           ${isPurchased ? `<span class="pill purchased-pill">已购买</span>` : `<span class="pill price-pill">${money(drama.price)} 全剧</span>`}
           ${drama.tags.map((tag) => `<span class="pill">${tag}</span>`).join("")}
         </div>
-        <div class="episode-grid">
-          ${Array.from({ length: Math.min(drama.episodes, 32) }, (_, index) => {
-            const ep = index + 1;
-            const isLocked = !isPurchased && ep > previewEpisodes;
-            const classes = [
-              ep === currentEp ? "active" : "",
-              isLocked ? "locked-ep" : ""
-            ].filter(Boolean).join(" ");
-            return `<button class="${classes}" data-episode="${ep}" ${isLocked ? "disabled" : ""}>
-              ${isLocked ? `<span class="lock-icon">🔒</span>` : ""}
-              ${ep}
-            </button>`;
-          }).join("")}
+        <div class="episode-section">
+          <div class="episode-section-header">
+            <h3 class="episode-section-title">剧集列表</h3>
+            <div class="episode-section-info">
+              <span class="muted small">当前：第 ${currentEp} 集 / 共 ${totalEp} 集</span>
+            </div>
+          </div>
+          <div class="episode-grid">
+            ${Array.from({ length: Math.min(drama.episodes, 32) }, (_, index) => {
+              const ep = index + 1;
+              const isLocked = !isPurchased && ep > previewEpisodes;
+              const isWatched = ep < watchedEpisodes;
+              const isCurrent = ep === currentEp;
+              const classes = [
+                isCurrent ? "active" : "",
+                isLocked ? "locked-ep" : "",
+                isWatched ? "watched-ep" : ""
+              ].filter(Boolean).join(" ");
+              return `<button class="${classes}" data-episode="${ep}" ${isLocked ? "disabled" : ""}>
+                ${isWatched && !isLocked ? `<span class="watched-dot">✓</span>` : ""}
+                ${isLocked ? `<span class="lock-icon">🔒</span>` : ""}
+                ${isCurrent ? `<span class="ep-num">${ep}</span>` : `<span class="ep-num">${ep}</span>`}
+                ${isCurrent ? `<span class="playing-indicator"></span>` : ""}
+              </button>`;
+            }).join("")}
+          </div>
+          ${drama.episodes > 32 ? `
+            <div class="more-episodes-hint">
+              <span class="muted small">还有 ${drama.episodes - 32} 集，继续探索更多精彩内容</span>
+            </div>
+          ` : ""}
+          ${!isPurchased && drama.episodes > previewEpisodes ? `
+            <p class="muted small episode-lock-hint">
+              🔒 前 ${previewEpisodes} 集免费试看，剩余 ${drama.episodes - previewEpisodes} 集需购买后观看
+            </p>
+          ` : ""}
         </div>
-        ${!isPurchased && drama.episodes > previewEpisodes ? `
-          <p class="muted small" style="margin-top:8px;text-align:center">
-            🔒 前 ${previewEpisodes} 集免费试看，剩余 ${drama.episodes - previewEpisodes} 集需购买后观看
-          </p>
-        ` : ""}
       </section>
     </main>
   `;
@@ -1560,24 +1629,23 @@ function bind() {
   });
 
   document.querySelectorAll("[data-episode]").forEach((node) => {
-    if (node.closest(".episode-grid")) {
-      node.addEventListener("click", async () => {
-        const ep = Number(node.dataset.episode);
-        const drama = state.selectedDrama || state.dramas[0];
-        const previewEpisodes = 2;
-        const isPurchased = drama?.isPurchased;
-        if (!isPurchased && ep > previewEpisodes) {
-          toast("本集需要购买后观看");
-          return;
-        }
-        state.currentEpisode = ep;
-        if (state.user && drama) {
-          const progress = Math.min(Math.round((ep / (drama.episodes || 1)) * 100), 100);
-          await addToHistory(drama.id, ep, progress);
-        }
-        render();
-      });
-    }
+    node.addEventListener("click", async () => {
+      const ep = Number(node.dataset.episode);
+      const drama = state.selectedDrama || state.dramas[0];
+      const previewEpisodes = 2;
+      const isPurchased = drama?.isPurchased;
+      if (!isPurchased && ep > previewEpisodes) {
+        toast("本集需要购买后观看");
+        return;
+      }
+      if (ep < 1 || ep > (drama?.episodes || 0)) return;
+      state.currentEpisode = ep;
+      if (state.user && drama) {
+        const progress = Math.min(Math.round((ep / (drama.episodes || 1)) * 100), 100);
+        await addToHistory(drama.id, ep, progress);
+      }
+      render();
+    });
   });
 
   document.querySelectorAll("[data-continue-last]").forEach((node) => {
