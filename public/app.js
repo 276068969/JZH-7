@@ -20,7 +20,9 @@ const state = {
   stats: null,
   users: [],
   orders: [],
-  revenueAnalysis: null
+  revenueAnalysis: null,
+  userProfiles: [],
+  selectedProfileUserId: null
 };
 
 const app = document.querySelector("#app");
@@ -161,6 +163,11 @@ async function loadAdmin() {
 async function loadRevenueAnalysis() {
   const data = await api("/api/admin/revenue-analysis");
   state.revenueAnalysis = data;
+}
+
+async function loadUserProfiles() {
+  const data = await api("/api/admin/user-profiles");
+  state.userProfiles = data.userProfiles;
 }
 
 async function loadRankings(type, status) {
@@ -862,6 +869,7 @@ function admin() {
         <button class="side-btn ${state.adminTab === "revenue" ? "active" : ""}" data-admin-tab="revenue">收入分析</button>
         <button class="side-btn ${state.adminTab === "dramas" ? "active" : ""}" data-admin-tab="dramas">短剧管理</button>
         <button class="side-btn ${state.adminTab === "orders" ? "active" : ""}" data-admin-tab="orders">订单用户</button>
+        <button class="side-btn ${state.adminTab === "profile" ? "active" : ""}" data-admin-tab="profile">用户画像</button>
       </aside>
       <section class="admin-main">
         <div class="stats">
@@ -875,6 +883,7 @@ function admin() {
         ${state.adminTab === "revenue" ? adminRevenue() : ""}
         ${state.adminTab === "dramas" ? adminDramas() : ""}
         ${state.adminTab === "orders" ? adminOrders() : ""}
+        ${state.adminTab === "profile" ? adminUserProfile() : ""}
       </section>
     </main>
   `;
@@ -1202,16 +1211,251 @@ function adminOrders() {
       <section class="admin-panel">
         <h2>订单</h2>
         <table>
-          <thead><tr><th>订单</th><th>用户</th><th>短剧</th><th>金额</th><th>日期</th></tr></thead>
-          <tbody>${state.orders.map((order) => `<tr><td>${order.id}</td><td>${order.user?.name || "-"}</td><td>${order.drama?.title || "-"}</td><td>${money(order.amount)}</td><td>${order.createdAt}</td></tr>`).join("")}</tbody>
+          <thead><tr><th>订单</th><th>用户</th><th>短剧</th><th>金额</th><th>日期</th><th>操作</th></tr></thead>
+          <tbody>${state.orders.map((order) => `<tr><td>${order.id}</td><td>${order.user?.name || "-"}</td><td>${order.drama?.title || "-"}</td><td>${money(order.amount)}</td><td>${order.createdAt}</td><td>${order.user ? `<button class="ghost-btn small-btn" data-view-profile="${order.user.id}">查看画像</button>` : "-"}</td></tr>`).join("")}</tbody>
         </table>
       </section>
       <section class="admin-panel">
         <h2>用户</h2>
         <table>
-          <thead><tr><th>用户</th><th>角色</th><th>套餐</th></tr></thead>
-          <tbody>${state.users.map((user) => `<tr><td>${user.name}</td><td>${user.role}</td><td>${user.plan}</td></tr>`).join("")}</tbody>
+          <thead><tr><th>用户</th><th>角色</th><th>套餐</th><th>操作</th></tr></thead>
+          <tbody>${state.users.map((user) => `<tr><td>${user.name}</td><td>${user.role}</td><td>${user.plan}</td><td><button class="ghost-btn small-btn" data-view-profile="${user.id}">查看画像</button></td></tr>`).join("")}</tbody>
         </table>
+      </section>
+    </div>
+  `;
+}
+
+function valueTierStyle(tier) {
+  const map = {
+    "高价值用户": "background:linear-gradient(135deg,#e84363,#ff6b8a);color:#fff",
+    "潜力用户": "background:linear-gradient(135deg,#f59e0b,#fbbf24);color:#fff",
+    "活跃用户": "background:linear-gradient(135deg,#0f9f9a,#2dd4bf);color:#fff",
+    "体验用户": "background:linear-gradient(135deg,#6366f1,#818cf8);color:#fff",
+    "普通用户": "background:#e9ecef;color:#495057"
+  };
+  return map[tier] || map["普通用户"];
+}
+
+function adminUserProfile() {
+  const profiles = state.userProfiles;
+  if (!profiles.length) {
+    return `<section class="admin-panel"><p class="muted">暂无用户数据</p></section>`;
+  }
+
+  const selected = state.selectedProfileUserId
+    ? profiles.find((p) => p.id === state.selectedProfileUserId)
+    : profiles[0];
+
+  if (!selected) {
+    return `<section class="admin-panel"><p class="muted">用户数据加载中...</p></section>`;
+  }
+
+  const maxGenreCount = Math.max(...selected.favoriteGenres.map((g) => g.count), 1);
+  const maxTagCount = Math.max(...selected.favoriteTags.map((t) => t.count), 1);
+
+  return `
+    <section class="admin-panel">
+      <div class="section-head">
+        <div>
+          <h2>用户画像</h2>
+          <p class="muted">直观展示用户套餐、内容偏好、购买记录与观看行为，辅助运营决策。</p>
+        </div>
+      </div>
+    </section>
+
+    <div class="profile-layout">
+      <aside class="profile-sidebar">
+        <div class="profile-list">
+          ${profiles.map((p) => `
+            <div class="profile-list-item ${p.id === selected.id ? "active" : ""}" data-select-profile="${p.id}">
+              <div class="profile-avatar">${p.name.charAt(0)}</div>
+              <div class="profile-list-info">
+                <div class="profile-list-name">${p.name}</div>
+                <div class="profile-list-sub">
+                  <span class="profile-plan-tag">${p.plan}</span>
+                  <span class="profile-tier-tag" style="${valueTierStyle(p.valueTier)}">${p.valueTier}</span>
+                </div>
+              </div>
+              <div class="profile-list-stats">
+                <div class="profile-list-amount">${money(p.stats.totalSpent)}</div>
+                <div class="profile-list-count muted small">${p.stats.orderCount} 单</div>
+              </div>
+            </div>
+          `).join("")}
+        </div>
+      </aside>
+
+      <section class="profile-main">
+        <div class="profile-header-card">
+          <div class="profile-avatar-large">${selected.name.charAt(0)}</div>
+          <div class="profile-header-info">
+            <div class="profile-header-row">
+              <h2 class="profile-name">${selected.name}</h2>
+              <span class="profile-tier-tag large" style="${valueTierStyle(selected.valueTier)}">${selected.valueTier}</span>
+            </div>
+            <div class="profile-header-meta">
+              <span class="profile-meta-item"><span class="muted">账号：</span>${selected.username}</span>
+              <span class="profile-meta-item"><span class="muted">角色：</span>${selected.role === "admin" ? "管理员" : "普通用户"}</span>
+              <span class="profile-meta-item"><span class="muted">套餐：</span><strong>${selected.plan}</strong></span>
+            </div>
+          </div>
+          <div class="profile-header-stats">
+            <div class="profile-stat-item">
+              <div class="profile-stat-value">${money(selected.stats.totalSpent)}</div>
+              <div class="profile-stat-label muted">累计消费</div>
+            </div>
+            <div class="profile-stat-item">
+              <div class="profile-stat-value">${selected.stats.orderCount}</div>
+              <div class="profile-stat-label muted">购买订单</div>
+            </div>
+            <div class="profile-stat-item">
+              <div class="profile-stat-value">${selected.stats.favoriteCount}</div>
+              <div class="profile-stat-label muted">收藏短剧</div>
+            </div>
+            <div class="profile-stat-item">
+              <div class="profile-stat-value">${selected.stats.watchCount}</div>
+              <div class="profile-stat-label muted">观看记录</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="profile-content-grid">
+          <section class="admin-panel">
+            <div class="section-head">
+              <div>
+                <h3>🎬 常看题材</h3>
+                <p class="muted">基于收藏、购买和观看记录分析题材偏好</p>
+              </div>
+            </div>
+            ${selected.favoriteGenres.length ? `
+              <div class="genre-bar-list">
+                ${selected.favoriteGenres.map((g) => {
+                  const percent = Math.round((g.count / maxGenreCount) * 100);
+                  const genreColors = ["#e84363", "#f59e0b", "#0f9f9a", "#6366f1", "#8b5cf6", "#ec4899"];
+                  const colorIndex = selected.favoriteGenres.indexOf(g) % genreColors.length;
+                  return `
+                    <div class="genre-bar-item">
+                      <div class="genre-bar-header">
+                        <span class="genre-bar-name">${g.genre}</span>
+                        <span class="genre-bar-count">${g.count} 部</span>
+                      </div>
+                      <div class="genre-bar-track">
+                        <div class="genre-bar-fill" style="width:${percent}%;background:${genreColors[colorIndex]}"></div>
+                      </div>
+                    </div>
+                  `;
+                }).join("")}
+              </div>
+            ` : `<div class="empty-insight"><p class="muted">暂无可分析的题材偏好数据</p></div>`}
+          </section>
+
+          <section class="admin-panel">
+            <div class="section-head">
+              <div>
+                <h3>🏷️ 内容偏好标签</h3>
+                <p class="muted">用户感兴趣的内容标签词云</p>
+              </div>
+            </div>
+            ${selected.favoriteTags.length ? `
+              <div class="tag-cloud">
+                ${selected.favoriteTags.map((t) => {
+                  const sizeScale = Math.max(0.75, t.count / maxTagCount);
+                  const tagColors = ["#e84363", "#f59e0b", "#0f9f9a", "#6366f1", "#8b5cf6", "#ec4899", "#10b981", "#3b82f6"];
+                  const colorIndex = selected.favoriteTags.indexOf(t) % tagColors.length;
+                  return `<span class="tag-cloud-item" style="font-size:${sizeScale}rem;color:${tagColors[colorIndex]};border-color:${tagColors[colorIndex]}33;background:${tagColors[colorIndex]}11">#${t.tag}</span>`;
+                }).join("")}
+              </div>
+            ` : `<div class="empty-insight"><p class="muted">暂无可分析的标签偏好数据</p></div>`}
+          </section>
+
+          <section class="admin-panel">
+            <div class="section-head">
+              <div>
+                <h3>💰 购买记录</h3>
+                <p class="muted">用户已付费购买的短剧列表</p>
+              </div>
+            </div>
+            ${selected.purchasedDramas.length ? `
+              <div class="purchase-list">
+                ${selected.purchasedDramas.map((order) => `
+                  <div class="purchase-item">
+                    <div class="purchase-thumb" style="background-image:url('${order.drama?.cover || ""}')"></div>
+                    <div class="purchase-info">
+                      <div class="purchase-title">${order.drama?.title || "未知短剧"}</div>
+                      <div class="purchase-meta">
+                        <span class="pill dark small">${order.drama?.genre || ""}</span>
+                        <span class="muted small">${order.createdAt}</span>
+                      </div>
+                    </div>
+                    <div class="purchase-amount">${money(order.amount)}</div>
+                  </div>
+                `).join("")}
+              </div>
+              <div class="purchase-summary">
+                <span class="muted">共 ${selected.purchasedDramas.length} 笔订单</span>
+                <strong>累计：${money(selected.stats.totalSpent)}</strong>
+              </div>
+            ` : `<div class="empty-insight"><p class="muted">该用户暂无购买记录</p></div>`}
+          </section>
+
+          <section class="admin-panel">
+            <div class="section-head">
+              <div>
+                <h3>⭐ 收藏偏好</h3>
+                <p class="muted">用户主动收藏的短剧</p>
+              </div>
+            </div>
+            ${selected.favoriteDramas.length ? `
+              <div class="favorite-grid">
+                ${selected.favoriteDramas.map((drama) => `
+                  <div class="favorite-mini-card">
+                    <div class="favorite-mini-poster" style="background-image:url('${drama.cover}')">
+                      <span class="badge">${drama.status}</span>
+                    </div>
+                    <div class="favorite-mini-body">
+                      <div class="favorite-mini-title">${drama.title}</div>
+                      <div class="favorite-mini-meta">
+                        <span class="pill dark small">${drama.genre}</span>
+                        <span class="pill dark small">★ ${drama.rating}</span>
+                      </div>
+                    </div>
+                  </div>
+                `).join("")}
+              </div>
+            ` : `<div class="empty-insight"><p class="muted">该用户暂无收藏短剧</p></div>`}
+          </section>
+
+          <section class="admin-panel full-width">
+            <div class="section-head">
+              <div>
+                <h3>📺 最近观看</h3>
+                <p class="muted">用户最近的观看行为轨迹</p>
+              </div>
+            </div>
+            ${selected.recentWatches.length ? `
+              <div class="watch-timeline">
+                ${selected.recentWatches.map((record, idx) => `
+                  <div class="watch-timeline-item">
+                    <div class="timeline-dot"></div>
+                    <div class="timeline-content">
+                      <div class="watch-thumb" style="background-image:url('${record.drama?.cover || ""}')"></div>
+                      <div class="watch-info">
+                        <div class="watch-title">${record.drama?.title || "未知短剧"}</div>
+                        <div class="watch-meta">
+                          <span class="pill dark small">${record.drama?.genre || ""}</span>
+                          <span class="muted small">第 ${record.episode} 集</span>
+                          <span class="muted small">进度 ${record.progress || 0}%</span>
+                          <span class="muted small">🕒 ${formatWatchedAt(record.watchedAt)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                `).join("")}
+              </div>
+            ` : `<div class="empty-insight"><p class="muted">该用户暂无观看记录</p></div>`}
+          </section>
+        </div>
       </section>
     </div>
   `;
@@ -1227,6 +1471,7 @@ async function render() {
     await loadAdmin();
     if (state.adminTab === "dramas") await loadAdminDramas(state.adminDramaStatus);
     if (state.adminTab === "revenue") await loadRevenueAnalysis();
+    if (state.adminTab === "profile") await loadUserProfiles();
   }
   if (state.route === "rankings") await loadRankings(state.rankTab, state.rankStatus);
   if (state.route === "favorites") await loadFavorites();
@@ -1511,6 +1756,22 @@ function bind() {
       } catch (error) {
         toast(error.message);
       }
+    });
+  });
+
+  document.querySelectorAll("[data-view-profile]").forEach((node) => {
+    node.addEventListener("click", async () => {
+      state.adminTab = "profile";
+      state.selectedProfileUserId = node.dataset.viewProfile;
+      await loadUserProfiles();
+      render();
+    });
+  });
+
+  document.querySelectorAll("[data-select-profile]").forEach((node) => {
+    node.addEventListener("click", () => {
+      state.selectedProfileUserId = node.dataset.selectProfile;
+      render();
     });
   });
 }

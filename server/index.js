@@ -570,6 +570,92 @@ async function api(req, res, pathname, url) {
     });
   }
 
+  if (req.method === "GET" && pathname === "/api/admin/user-profiles") {
+    if (!requireAdmin(req, res)) return;
+    const userProfiles = db.users.map((user) => {
+      const userOrders = db.orders.filter(
+        (order) => order.userId === user.id && order.status === "paid"
+      );
+      const totalSpent = userOrders.reduce((sum, o) => sum + o.amount, 0);
+      const orderCount = userOrders.length;
+
+      const favoriteDramaIds = user.favorites || [];
+      const watchHistory = user.watchHistory || [];
+
+      const allDramaIds = [
+        ...favoriteDramaIds,
+        ...watchHistory.map((h) => h.dramaId),
+        ...userOrders.map((o) => o.dramaId)
+      ];
+      const uniqueDramaIds = [...new Set(allDramaIds)];
+      const relatedDramas = db.dramas.filter((d) => uniqueDramaIds.includes(d.id));
+
+      const genreCount = {};
+      const tagCount = {};
+      relatedDramas.forEach((drama) => {
+        genreCount[drama.genre] = (genreCount[drama.genre] || 0) + 1;
+        (drama.tags || []).forEach((tag) => {
+          tagCount[tag] = (tagCount[tag] || 0) + 1;
+        });
+      });
+
+      const favoriteGenres = Object.entries(genreCount)
+        .map(([genre, count]) => ({ genre, count }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 5);
+
+      const favoriteTags = Object.entries(tagCount)
+        .map(([tag, count]) => ({ tag, count }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 8);
+
+      const purchasedDramas = userOrders
+        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+        .map((order) => ({
+          ...order,
+          drama: db.dramas.find((d) => d.id === order.dramaId)
+        }));
+
+      const favoriteDramas = favoriteDramaIds
+        .map((id) => db.dramas.find((d) => d.id === id))
+        .filter(Boolean);
+
+      const watchSummary = watchHistory
+        .slice()
+        .sort((a, b) => new Date(b.watchedAt) - new Date(a.watchedAt))
+        .slice(0, 10)
+        .map((record) => ({
+          ...record,
+          drama: db.dramas.find((d) => d.id === record.dramaId)
+        }))
+        .filter((r) => r.drama);
+
+      let valueTier = "普通用户";
+      if (totalSpent >= 100) valueTier = "高价值用户";
+      else if (totalSpent >= 50) valueTier = "潜力用户";
+      else if (totalSpent >= 20) valueTier = "活跃用户";
+      else if (orderCount > 0) valueTier = "体验用户";
+
+      return {
+        ...publicUser(user),
+        stats: {
+          totalSpent,
+          orderCount,
+          favoriteCount: favoriteDramaIds.length,
+          watchCount: watchHistory.length
+        },
+        valueTier,
+        favoriteGenres,
+        favoriteTags,
+        purchasedDramas,
+        favoriteDramas,
+        recentWatches: watchSummary
+      };
+    });
+
+    return send(res, 200, { userProfiles });
+  }
+
   send(res, 404, { message: "接口不存在" });
 }
 
