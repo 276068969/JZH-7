@@ -1,7 +1,7 @@
 const http = require("http");
 const path = require("path");
 const fs = require("fs");
-const { readDb, writeDb, publicUser, createId, VALID_GENRES, VALID_STATUSES, VALID_TAG_RE } = require("./store");
+const { readDb, writeDb, publicUser, createId, VALID_GENRES, VALID_STATUSES, VALID_TAG_RE, DIRTY_TAG_BLACKLIST, isSemanticallyCleanTag } = require("./store");
 
 const port = Number(process.env.PORT || 3000);
 const publicDir = path.join(__dirname, "..", "public");
@@ -146,9 +146,9 @@ function validateDramaCreate(body) {
 
   if (body.tags !== undefined) {
     const tagsList = String(body.tags || "").split(",").map((t) => t.trim()).filter(Boolean);
-    const invalidTags = tagsList.filter((t) => !VALID_TAG_RE.test(t));
+    const invalidTags = tagsList.filter((t) => !VALID_TAG_RE.test(t) || !isSemanticallyCleanTag(t));
     if (invalidTags.length) {
-      errors.push("标签包含非法字符：" + invalidTags.join("、"));
+      errors.push("标签包含非法字符或语义无效：" + invalidTags.join("、"));
     }
   }
 
@@ -227,9 +227,9 @@ function validateDramaUpdate(body) {
     const tagsList = Array.isArray(body.tags)
       ? body.tags
       : String(body.tags || "").split(",").map((t) => t.trim()).filter(Boolean);
-    const invalidTags = tagsList.filter((t) => typeof t !== "string" || !VALID_TAG_RE.test(t.trim()));
+    const invalidTags = tagsList.filter((t) => typeof t !== "string" || !VALID_TAG_RE.test(t.trim()) || !isSemanticallyCleanTag(t.trim()));
     if (invalidTags.length) {
-      errors.push("标签包含非法字符");
+      errors.push("标签包含非法字符或语义无效");
     }
   }
 
@@ -653,7 +653,12 @@ async function api(req, res, pathname, url) {
         (Array.isArray(drama.tags) ? drama.tags : []).forEach((tag) => {
           if (typeof tag !== "string") return;
           const trimmed = tag.trim();
-          if (!trimmed || garbleRe.test(trimmed) || !tagRe.test(trimmed)) return;
+          if (
+            !trimmed ||
+            garbleRe.test(trimmed) ||
+            !tagRe.test(trimmed) ||
+            !isSemanticallyCleanTag(trimmed)
+          ) return;
           tagCount[trimmed] = (tagCount[trimmed] || 0) + 1;
         });
       });

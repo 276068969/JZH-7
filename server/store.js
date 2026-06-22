@@ -9,6 +9,23 @@ const VALID_GENRES = ["都市", "甜宠", "古装", "治愈", "悬疑", "喜剧"
 const VALID_STATUSES = ["上新", "热播", "完结", "下架"];
 const VALID_TAG_RE = /^[\u4e00-\u9fff\u3400-\u4dbfa-zA-Z0-9·\-_.\s]+$/;
 const GARBLE_RE = /[\u0000-\u001f\u007f-\u009f\ufffd\u00c0-\u00ff]{2,}|[\u00c0-\u00ff][\u0080-\u00bf]/;
+const DIRTY_TAG_BLACKLIST = new Set([
+  "", "-", "--", "---", "_", "__", ".", "..", "/", "\\",
+  "null", "undefined", "none", "n/a", "na", "nil", "unknown",
+  "空", "无", "无标签", "标签", "tag", "tags", "test", "测试",
+  "1", "2", "3", "0", "00"
+]);
+
+function isSemanticallyCleanTag(tag) {
+  if (typeof tag !== "string") return false;
+  const trimmed = tag.trim();
+  if (trimmed.length < 2) return false;
+  const lower = trimmed.toLowerCase();
+  if (DIRTY_TAG_BLACKLIST.has(trimmed) || DIRTY_TAG_BLACKLIST.has(lower)) return false;
+  if (/^[\d\p{P}\p{S}\p{Z}_]+$/u.test(trimmed)) return false;
+  if (trimmed.split(/\s+/).length > 5) return false;
+  return true;
+}
 
 function isCleanText(str) {
   if (typeof str !== "string") return false;
@@ -43,25 +60,13 @@ function sanitizeDrama(drama, baseline) {
   restoreFromBaseline("status", "上新", VALID_STATUSES);
 
   if (baseline && Array.isArray(baseline.tags)) {
-    const currentTags = Array.isArray(drama.tags) ? drama.tags : [];
-    const baselineClean = baseline.tags.slice();
-    const merged = [...baselineClean];
-    currentTags.forEach((t) => {
-      if (
-        typeof t === "string" &&
-        t.trim() &&
-        VALID_TAG_RE.test(t.trim()) &&
-        isCleanText(t.trim()) &&
-        !merged.includes(t.trim())
-      ) {
-        merged.push(t.trim());
-      }
-    });
-    const mergedChanged =
-      merged.length !== currentTags.length ||
-      merged.some((t, i) => t !== currentTags[i]);
-    if (mergedChanged) {
-      drama.tags = merged;
+    const baselineTags = baseline.tags.slice();
+    const changed =
+      !Array.isArray(drama.tags) ||
+      baselineTags.length !== drama.tags.length ||
+      baselineTags.some((t, i) => t !== drama.tags[i]);
+    if (changed) {
+      drama.tags = baselineTags;
       dirty = true;
     }
   } else if (!Array.isArray(drama.tags)) {
@@ -71,7 +76,11 @@ function sanitizeDrama(drama, baseline) {
     const cleanTags = drama.tags.filter((tag) => {
       if (typeof tag !== "string") return false;
       const trimmed = tag.trim();
-      return trimmed.length > 0 && VALID_TAG_RE.test(trimmed) && isCleanText(trimmed);
+      return (
+        VALID_TAG_RE.test(trimmed) &&
+        isCleanText(trimmed) &&
+        isSemanticallyCleanTag(trimmed)
+      );
     });
     if (cleanTags.length !== drama.tags.length) {
       drama.tags = cleanTags;
@@ -279,5 +288,7 @@ module.exports = {
   createId,
   VALID_GENRES,
   VALID_STATUSES,
-  VALID_TAG_RE
+  VALID_TAG_RE,
+  DIRTY_TAG_BLACKLIST,
+  isSemanticallyCleanTag
 };
