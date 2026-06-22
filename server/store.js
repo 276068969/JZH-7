@@ -17,17 +17,54 @@ function isCleanText(str) {
   return true;
 }
 
-function sanitizeDrama(drama) {
+function isFieldDirty(value, expectedValidValues) {
+  if (typeof value !== "string") return true;
+  if (!isCleanText(value)) return true;
+  if (Array.isArray(expectedValidValues) && expectedValidValues.length > 0 && !expectedValidValues.includes(value)) return true;
+  return false;
+}
+
+function sanitizeDrama(drama, baseline) {
   let dirty = false;
-  if (!VALID_GENRES.includes(drama.genre) || !isCleanText(drama.genre)) {
-    drama.genre = "其他";
-    dirty = true;
-  }
-  if (!VALID_STATUSES.includes(drama.status) || !isCleanText(drama.status)) {
-    drama.status = "上新";
-    dirty = true;
-  }
-  if (!Array.isArray(drama.tags)) {
+
+  const restoreFromBaseline = (field, fallback, allowList) => {
+    if (baseline && typeof baseline[field] !== "undefined") {
+      if (drama[field] !== baseline[field]) {
+        drama[field] = baseline[field];
+        dirty = true;
+      }
+    } else if (isFieldDirty(drama[field], allowList)) {
+      drama[field] = fallback;
+      dirty = true;
+    }
+  };
+
+  restoreFromBaseline("genre", "其他", VALID_GENRES);
+  restoreFromBaseline("status", "上新", VALID_STATUSES);
+
+  if (baseline && Array.isArray(baseline.tags)) {
+    const currentTags = Array.isArray(drama.tags) ? drama.tags : [];
+    const baselineClean = baseline.tags.slice();
+    const merged = [...baselineClean];
+    currentTags.forEach((t) => {
+      if (
+        typeof t === "string" &&
+        t.trim() &&
+        VALID_TAG_RE.test(t.trim()) &&
+        isCleanText(t.trim()) &&
+        !merged.includes(t.trim())
+      ) {
+        merged.push(t.trim());
+      }
+    });
+    const mergedChanged =
+      merged.length !== currentTags.length ||
+      merged.some((t, i) => t !== currentTags[i]);
+    if (mergedChanged) {
+      drama.tags = merged;
+      dirty = true;
+    }
+  } else if (!Array.isArray(drama.tags)) {
     drama.tags = [];
     dirty = true;
   } else {
@@ -41,24 +78,83 @@ function sanitizeDrama(drama) {
       dirty = true;
     }
   }
-  if (typeof drama.title !== "string" || !isCleanText(drama.title)) {
-    drama.title = drama.title ? String(drama.title).replace(/[\u0000-\u001f\ufffd]/g, "").trim() || "未命名短剧" : "未命名短剧";
+
+  if (baseline && typeof baseline.title === "string") {
+    if (drama.title !== baseline.title) {
+      drama.title = baseline.title;
+      dirty = true;
+    }
+  } else if (typeof drama.title !== "string" || !isCleanText(drama.title)) {
+    drama.title = drama.title
+      ? String(drama.title).replace(/[\u0000-\u001f\ufffd]/g, "").trim() || "未命名短剧"
+      : "未命名短剧";
     dirty = true;
   }
-  if (typeof drama.synopsis !== "string" || !isCleanText(drama.synopsis)) {
-    drama.synopsis = drama.synopsis ? String(drama.synopsis).replace(/[\u0000-\u001f\ufffd]/g, "").trim() : "";
+
+  if (baseline && typeof baseline.synopsis === "string") {
+    if (drama.synopsis !== baseline.synopsis) {
+      drama.synopsis = baseline.synopsis;
+      dirty = true;
+    }
+  } else if (typeof drama.synopsis !== "string" || !isCleanText(drama.synopsis)) {
+    drama.synopsis = drama.synopsis
+      ? String(drama.synopsis).replace(/[\u0000-\u001f\ufffd]/g, "").trim()
+      : "";
     dirty = true;
   }
+
+  if (baseline && typeof baseline.cover === "string" && drama.cover !== baseline.cover) {
+    drama.cover = baseline.cover;
+    dirty = true;
+  }
+
   return dirty;
 }
 
 function sanitizeDb(db) {
   let dirty = false;
-  if (Array.isArray(db.dramas)) {
-    db.dramas.forEach((drama) => {
-      if (sanitizeDrama(drama)) dirty = true;
-    });
+
+  if (!Array.isArray(db.dramas)) {
+    db.dramas = [];
+    dirty = true;
   }
+
+  const seedById = new Map(seed.dramas.map((d) => [d.id, d]));
+  const dbById = new Map(db.dramas.map((d) => [d.id, d]));
+
+  seedById.forEach((baselineDrama, id) => {
+    const existing = dbById.get(id);
+    if (existing) {
+      if (sanitizeDrama(existing, baselineDrama)) dirty = true;
+    } else {
+      db.dramas.unshift(JSON.parse(JSON.stringify(baselineDrama)));
+      dbById.set(id, baselineDrama);
+      dirty = true;
+    }
+  });
+
+  db.dramas.forEach((drama) => {
+    if (!seedById.has(drama.id)) {
+      if (sanitizeDrama(drama, null)) dirty = true;
+    }
+  });
+
+  if (!Array.isArray(db.orders)) {
+    db.orders = [];
+    dirty = true;
+  }
+  if (!Array.isArray(db.users)) {
+    db.users = [];
+    dirty = true;
+  }
+  const userIds = new Map(db.users.map((u) => [u.id, u]));
+  seed.users.forEach((seedUser) => {
+    if (!userIds.has(seedUser.id)) {
+      db.users.push(JSON.parse(JSON.stringify(seedUser)));
+      dirty = true;
+    }
+  });
+
   return dirty;
 }
 

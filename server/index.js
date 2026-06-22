@@ -622,6 +622,11 @@ async function api(req, res, pathname, url) {
 
   if (req.method === "GET" && pathname === "/api/admin/user-profiles") {
     if (!requireAdmin(req, res)) return;
+    const genreWhitelist = new Set(VALID_GENRES);
+    const tagRe = VALID_TAG_RE;
+    const garbleRe = /[\u0000-\u001f\u007f-\u009f\ufffd\u00c0-\u00ff]{2,}|[\u00c0-\u00ff][\u0080-\u00bf]/;
+    const isSafe = (s) => typeof s === "string" && s.trim().length > 0 && !garbleRe.test(s);
+
     const userProfiles = db.users.map((user) => {
       const userOrders = db.orders.filter(
         (order) => order.userId === user.id && order.status === "paid"
@@ -643,9 +648,13 @@ async function api(req, res, pathname, url) {
       const genreCount = {};
       const tagCount = {};
       relatedDramas.forEach((drama) => {
-        genreCount[drama.genre] = (genreCount[drama.genre] || 0) + 1;
-        (drama.tags || []).forEach((tag) => {
-          tagCount[tag] = (tagCount[tag] || 0) + 1;
+        const genre = isSafe(drama.genre) && genreWhitelist.has(drama.genre) ? drama.genre : "其他";
+        genreCount[genre] = (genreCount[genre] || 0) + 1;
+        (Array.isArray(drama.tags) ? drama.tags : []).forEach((tag) => {
+          if (typeof tag !== "string") return;
+          const trimmed = tag.trim();
+          if (!trimmed || garbleRe.test(trimmed) || !tagRe.test(trimmed)) return;
+          tagCount[trimmed] = (tagCount[trimmed] || 0) + 1;
         });
       });
 
