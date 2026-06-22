@@ -1,7 +1,7 @@
 const http = require("http");
 const path = require("path");
 const fs = require("fs");
-const { readDb, writeDb, publicUser, createId } = require("./store");
+const { readDb, writeDb, publicUser, createId, VALID_GENRES, VALID_STATUSES, VALID_TAG_RE } = require("./store");
 
 const port = Number(process.env.PORT || 3000);
 const publicDir = path.join(__dirname, "..", "public");
@@ -95,6 +95,20 @@ function validateDramaCreate(body) {
     errors.push("短剧名称不能超过 100 个字符");
   }
 
+  const genre = String(body.genre || "").trim();
+  if (!genre) {
+    errors.push("题材不能为空");
+  } else if (!VALID_GENRES.includes(genre)) {
+    errors.push("题材必须为：" + VALID_GENRES.join("、"));
+  }
+
+  const status = String(body.status || "").trim();
+  if (!status) {
+    errors.push("状态不能为空");
+  } else if (!VALID_STATUSES.includes(status)) {
+    errors.push("状态必须为：" + VALID_STATUSES.join("、"));
+  }
+
   if (body.rating !== undefined && body.rating !== "") {
     const rating = Number(body.rating);
     if (isNaN(rating) || rating < 0 || rating > 10) {
@@ -130,6 +144,14 @@ function validateDramaCreate(body) {
     }
   }
 
+  if (body.tags !== undefined) {
+    const tagsList = String(body.tags || "").split(",").map((t) => t.trim()).filter(Boolean);
+    const invalidTags = tagsList.filter((t) => !VALID_TAG_RE.test(t));
+    if (invalidTags.length) {
+      errors.push("标签包含非法字符：" + invalidTags.join("、"));
+    }
+  }
+
   return errors;
 }
 
@@ -143,6 +165,24 @@ function validateDramaUpdate(body) {
       errors.push("短剧名称不能为空");
     } else if (title.length > 100) {
       errors.push("短剧名称不能超过 100 个字符");
+    }
+  }
+
+  if (keys.includes("genre")) {
+    const genre = String(body.genre || "").trim();
+    if (!genre) {
+      errors.push("题材不能为空");
+    } else if (!VALID_GENRES.includes(genre)) {
+      errors.push("题材必须为：" + VALID_GENRES.join("、"));
+    }
+  }
+
+  if (keys.includes("status")) {
+    const status = String(body.status || "").trim();
+    if (!status) {
+      errors.push("状态不能为空");
+    } else if (!VALID_STATUSES.includes(status)) {
+      errors.push("状态必须为：" + VALID_STATUSES.join("、"));
     }
   }
 
@@ -180,6 +220,16 @@ function validateDramaUpdate(body) {
     const synopsis = String(body.synopsis || "").trim();
     if (synopsis.length > 500) {
       errors.push("简介不能超过 500 个字符");
+    }
+  }
+
+  if (keys.includes("tags")) {
+    const tagsList = Array.isArray(body.tags)
+      ? body.tags
+      : String(body.tags || "").split(",").map((t) => t.trim()).filter(Boolean);
+    const invalidTags = tagsList.filter((t) => typeof t !== "string" || !VALID_TAG_RE.test(t.trim()));
+    if (invalidTags.length) {
+      errors.push("标签包含非法字符");
     }
   }
 

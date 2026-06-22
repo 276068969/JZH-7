@@ -1190,7 +1190,7 @@ function adminDramas() {
         <h2>新增短剧</h2>
         <form class="form-grid" data-create-form>
           <label>名称<input name="title" required /></label>
-          <label>题材<input name="genre" value="都市" required /></label>
+          <label>题材<select name="genre"><option>都市</option><option>甜宠</option><option>古装</option><option>治愈</option><option>悬疑</option><option>喜剧</option><option>科幻</option><option>动作</option><option>其他</option></select></label>
           <label>状态<select name="status"><option>上新</option><option>热播</option><option>完结</option><option>下架</option></select></label>
           <label>评分<input name="rating" type="number" step="0.1" value="8.6" /></label>
           <label>集数<input name="episodes" type="number" value="24" /></label>

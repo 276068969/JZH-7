@@ -5,6 +5,63 @@ const crypto = require("crypto");
 const dataDir = path.join(__dirname, "..", "data");
 const dbFile = path.join(dataDir, "db.json");
 
+const VALID_GENRES = ["都市", "甜宠", "古装", "治愈", "悬疑", "喜剧", "科幻", "动作", "其他"];
+const VALID_STATUSES = ["上新", "热播", "完结", "下架"];
+const VALID_TAG_RE = /^[\u4e00-\u9fff\u3400-\u4dbfa-zA-Z0-9·\-_.\s]+$/;
+const GARBLE_RE = /[\u0000-\u001f\u007f-\u009f\ufffd\u00c0-\u00ff]{2,}|[\u00c0-\u00ff][\u0080-\u00bf]/;
+
+function isCleanText(str) {
+  if (typeof str !== "string") return false;
+  if (!str.trim()) return false;
+  if (GARBLE_RE.test(str)) return false;
+  return true;
+}
+
+function sanitizeDrama(drama) {
+  let dirty = false;
+  if (!VALID_GENRES.includes(drama.genre) || !isCleanText(drama.genre)) {
+    drama.genre = "其他";
+    dirty = true;
+  }
+  if (!VALID_STATUSES.includes(drama.status) || !isCleanText(drama.status)) {
+    drama.status = "上新";
+    dirty = true;
+  }
+  if (!Array.isArray(drama.tags)) {
+    drama.tags = [];
+    dirty = true;
+  } else {
+    const cleanTags = drama.tags.filter((tag) => {
+      if (typeof tag !== "string") return false;
+      const trimmed = tag.trim();
+      return trimmed.length > 0 && VALID_TAG_RE.test(trimmed) && isCleanText(trimmed);
+    });
+    if (cleanTags.length !== drama.tags.length) {
+      drama.tags = cleanTags;
+      dirty = true;
+    }
+  }
+  if (typeof drama.title !== "string" || !isCleanText(drama.title)) {
+    drama.title = drama.title ? String(drama.title).replace(/[\u0000-\u001f\ufffd]/g, "").trim() || "未命名短剧" : "未命名短剧";
+    dirty = true;
+  }
+  if (typeof drama.synopsis !== "string" || !isCleanText(drama.synopsis)) {
+    drama.synopsis = drama.synopsis ? String(drama.synopsis).replace(/[\u0000-\u001f\ufffd]/g, "").trim() : "";
+    dirty = true;
+  }
+  return dirty;
+}
+
+function sanitizeDb(db) {
+  let dirty = false;
+  if (Array.isArray(db.dramas)) {
+    db.dramas.forEach((drama) => {
+      if (sanitizeDrama(drama)) dirty = true;
+    });
+  }
+  return dirty;
+}
+
 const seed = {
   users: [
     {
@@ -99,10 +156,13 @@ function ensureDb() {
 
 function readDb() {
   ensureDb();
-  return JSON.parse(fs.readFileSync(dbFile, "utf8"));
+  const db = JSON.parse(fs.readFileSync(dbFile, "utf8"));
+  if (sanitizeDb(db)) writeDb(db);
+  return db;
 }
 
 function writeDb(db) {
+  sanitizeDb(db);
   fs.writeFileSync(dbFile, JSON.stringify(db, null, 2));
 }
 
@@ -120,5 +180,8 @@ module.exports = {
   readDb,
   writeDb,
   publicUser,
-  createId
+  createId,
+  VALID_GENRES,
+  VALID_STATUSES,
+  VALID_TAG_RE
 };
